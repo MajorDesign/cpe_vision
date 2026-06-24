@@ -28,9 +28,6 @@ namespace VideoWall.Viewer
     {
         private UdpBeacon? _beacon;
         private CommandServer? _commandServer;
-        private ControllerLocator? _locator;
-        private LanUpdater? _updater;
-        private DispatcherTimer? _updateTimer;
         private LiveInputServer? _liveInputServer;
         private ThumbnailServer? _thumbnailServer;
         private LiveStateServer? _liveStateServer;
@@ -62,6 +59,7 @@ namespace VideoWall.Viewer
         public MainWindow()
         {
             InitializeComponent();
+            FooterText.Text = $"Esc para sair · v{GitHubUpdater.CurrentVersion()}";
             Loaded += OnLoaded;
             Closed += OnClosed;
         }
@@ -102,13 +100,7 @@ namespace VideoWall.Viewer
             _liveStateServer = new LiveStateServer(GetCellStateAsync);
             try { _liveStateServer.Start(); } catch { /* porta ocupada */ }
 
-            // Auto-atualização pela rede: localiza o central e checa a cada minuto.
-            _locator = new ControllerLocator();
-            try { _locator.Start(); } catch { }
-            _updater = new LanUpdater(_locator);
-            _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
-            _updateTimer.Tick += async (_, _) => await _updater.CheckAndUpdateAsync();
-            _updateTimer.Start();
+            // A atualização agora é pelo GitHub, verificada no pré-load (SplashWindow).
         }
 
         private void ApplyCommand(ScreenCommand command)
@@ -722,8 +714,6 @@ namespace VideoWall.Viewer
 
         private void OnClosed(object? sender, EventArgs e)
         {
-            _updateTimer?.Stop();
-            _locator?.Dispose();
             _commandServer?.Dispose();
             _liveInputServer?.Dispose();
             _thumbnailServer?.Dispose();

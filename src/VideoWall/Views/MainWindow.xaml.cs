@@ -51,6 +51,8 @@ namespace VideoWall.Views
             DataContext = _viewModel;
 
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+            VersionLabel.Text = "v" + Network.GitHubUpdater.CurrentVersion();
         }
 
         protected override void OnSourceInitialized(EventArgs e)

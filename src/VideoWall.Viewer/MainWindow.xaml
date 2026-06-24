@@ -42,7 +42,8 @@
         </StackPanel>
 
         <!-- Rodapé -->
-        <TextBlock Text="Esc para sair" FontFamily="Consolas" FontSize="11" Foreground="#45474F"
-                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"/>
+        <TextBlock x:Name="FooterText" Text="Esc para sair" FontFamily="Consolas" FontSize="11"
+                   Foreground="#45474F" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Margin="0,0,16,12" Panel.ZIndex="30"/>
     </Grid>
 </Window>

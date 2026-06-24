@@ -10,6 +10,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Versão do controlador. Suba este número antes de publicar uma atualização. -->
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
