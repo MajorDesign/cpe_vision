@@ -1,0 +1,120 @@
+<Application x:Class="VideoWall.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:VideoWall.Models"
+             xmlns:conv="clr-namespace:VideoWall.Converters"
+             xmlns:views="clr-namespace:VideoWall.Views"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             StartupUri="Views/MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/CpeTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+        <!-- Conversores compartilhados -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <conv:SumConverter x:Key="SumConverter"/>
+        <conv:StringToUriConverter x:Key="StringToUriConverter"/>
+        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+
+        <!--
+          DataTemplates por tipo de elemento, resolvidos automaticamente pelo WPF
+          tanto na pré-visualização quanto nas janelas de saída.
+        -->
+        <DataTemplate DataType="{x:Type models:ColorElement}">
+            <Border Background="{Binding ColorHex}"
+                    Width="{Binding Width}"
+                    Height="{Binding Height}"/>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type models:TextElement}">
+            <Grid Width="{Binding Width}" Height="{Binding Height}">
+                <TextBlock Text="{Binding Text}"
+                           FontSize="{Binding FontSize}"
+                           Foreground="{Binding ForegroundHex}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type models:ImageElement}">
+            <Image Source="{Binding ImagePath}"
+                   Width="{Binding Width}"
+                   Height="{Binding Height}"
+                   Stretch="Fill"/>
+        </DataTemplate>
+
+        <!--
+          Fonte Aplicativo (espelhamento de janela). O frame é um ImageSource
+          comum, então renderiza normalmente na pré-visualização e nas telas.
+        -->
+        <DataTemplate DataType="{x:Type models:WindowCaptureElement}">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" Background="#0B0B12">
+                <Image Source="{Binding Frame}" Stretch="Fill"/>
+                <TextBlock Text="{Binding WindowTitle}" Foreground="#6B7280"
+                           FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding Frame, Converter={StaticResource NullToVisibilityConverter}}"/>
+            </Grid>
+        </DataTemplate>
+
+        <!--
+          Fonte Navegador.
+          - "Live": WebView2 real, usado nas janelas de saída.
+          - "Preview": marcador estático, usado na pré-visualização (o WebView2
+            não respeita as transformações do Viewbox).
+        -->
+        <DataTemplate x:Key="BrowserLiveTemplate">
+            <views:BrowserView Url="{Binding Url}"
+                               ZoomFactor="{Binding ZoomFactor}"
+                               Width="{Binding Width}"
+                               Height="{Binding Height}"/>
+        </DataTemplate>
+
+        <DataTemplate x:Key="BrowserPreviewTemplate">
+            <Border Width="{Binding Width}" Height="{Binding Height}"
+                    Background="#0B1220" BorderBrush="#1F2937" BorderThickness="2">
+                <Grid>
+                    <!-- Miniatura do conteúdo (capturada ao editar a URL) -->
+                    <Image Source="{Binding PreviewImage}" Stretch="UniformToFill"/>
+                    <!-- Marcador exibido enquanto não há miniatura -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding PreviewImage, Converter={StaticResource NullToVisibilityConverter}}">
+                        <TextBlock Text="🌐" FontSize="64" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Navegador" FontSize="20" Foreground="#93C5FD"
+                                   FontWeight="Bold" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding Url}" FontSize="14" Foreground="#9CA3AF"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="600"
+                                   HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!--
+          Fonte Câmera (RTSP/CFTV).
+          - "Live": VideoView do VLC, usado nas janelas de saída.
+          - "Preview": marcador estático (o VideoView também não respeita o Viewbox).
+        -->
+        <DataTemplate x:Key="CameraLiveTemplate">
+            <views:CameraView StreamUrl="{Binding StreamUrl}"
+                              Width="{Binding Width}"
+                              Height="{Binding Height}"/>
+        </DataTemplate>
+
+        <DataTemplate x:Key="CameraPreviewTemplate">
+            <Border Width="{Binding Width}" Height="{Binding Height}"
+                    Background="#0B1220" BorderBrush="#1F2937" BorderThickness="2">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="📷" FontSize="64" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Câmera" FontSize="20" Foreground="#F9A8D4"
+                               FontWeight="Bold" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding StreamUrl}" FontSize="14" Foreground="#9CA3AF"
+                               TextTrimming="CharacterEllipsis" MaxWidth="600"
+                               HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

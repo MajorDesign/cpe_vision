@@ -1,0 +1,48 @@
+<Window x:Class="VideoWall.Viewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="CPE · VideoWall Viewer"
+        WindowStyle="None" WindowState="Maximized" ResizeMode="NoResize"
+        Background="#0C0D10">
+    <Grid>
+        <!-- Superfície de conteúdo recebido do controlador (oculta até chegar um comando) -->
+        <Canvas x:Name="Surface" Background="#0C0D10" Visibility="Collapsed" Panel.ZIndex="10"/>
+        <!-- Camada de marcações (caneta/seta/retângulo) desenhadas a partir do controlador -->
+        <Canvas x:Name="AnnotationLayer" Background="Transparent" IsHitTestVisible="False" Panel.ZIndex="20"/>
+        <!-- Identidade central (estado ocioso do terminal) -->
+        <StackPanel x:Name="IdlePanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- Logo CPE -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,28">
+                <Grid Width="42" Height="42" Margin="0,0,14,0" VerticalAlignment="Center">
+                    <Ellipse Stroke="#F2B705" StrokeThickness="2.5"/>
+                    <Ellipse Width="16" Stroke="#F2B705" StrokeThickness="1.6" HorizontalAlignment="Center"/>
+                    <Rectangle Height="1.6" Fill="#F2B705" VerticalAlignment="Center"/>
+                </Grid>
+                <StackPanel VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CPE" FontSize="26" FontWeight="Bold" Foreground="#F2F0E8"/>
+                        <TextBlock Text="Tecnologia" FontSize="26" Foreground="#F2B705" Margin="8,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="VIDEOWALL · VIEWER" FontFamily="Consolas" FontSize="12"
+                               Foreground="#9A9B92" Margin="0,2,0,0"/>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="ScreenName" Text="—" FontSize="44" FontWeight="Bold"
+                       Foreground="#F2F0E8" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="ScreenAddr" Text="" FontFamily="Consolas" FontSize="15"
+                       Foreground="#9A9B92" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
+                <Ellipse Width="9" Height="9" Fill="#F2B705" VerticalAlignment="Center"/>
+                <TextBlock Text="Aguardando o controlador…" FontFamily="Consolas" FontSize="13"
+                           Foreground="#9A9B92" Margin="10,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Rodapé -->
+        <TextBlock Text="Esc para sair" FontFamily="Consolas" FontSize="11" Foreground="#45474F"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"/>
+    </Grid>
+</Window>

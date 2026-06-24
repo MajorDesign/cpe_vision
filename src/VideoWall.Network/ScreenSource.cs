@@ -1,0 +1,35 @@
+namespace VideoWall.Network
+{
+    /// <summary>
+    /// Uma fonte dentro do layout enviado a um terminal. Posição e tamanho são
+    /// NORMALIZADOS (0..1) em relação à tela do terminal, para independer da
+    /// resolução. Suporta navegador, cor e texto (câmera/imagem virão depois).
+    /// </summary>
+    public sealed class ScreenSource
+    {
+        /// <summary>"browser", "color" ou "text".</summary>
+        public string Kind { get; set; } = string.Empty;
+
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Width { get; set; }
+        public double Height { get; set; }
+        public int ZIndex { get; set; }
+
+        // Navegador
+        public string? Url { get; set; }
+        public double Zoom { get; set; } = 1.0;
+
+        // Cor
+        public string? ColorHex { get; set; }
+
+        // Texto
+        public string? Text { get; set; }
+        public double FontSize { get; set; } = 48;
+        public string? ForegroundHex { get; set; }
+
+        public const string Browser = "browser";
+        public const string Color = "color";
+        public const string Text2 = "text";
+    }
+}

@@ -1,0 +1,47 @@
+<UserControl x:Class="VideoWall.Views.WallSurfaceView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+      Superfície que desenha os elementos da parede num Canvas único.
+      A posição de cada elemento é (coordenada + Offset), de forma que cada
+      janela de saída mostre apenas o recorte da parede virtual correspondente
+      ao seu monitor. O deslocamento é embutido na posição do Canvas (e não numa
+      transformação) para que controles HWND, como o WebView2, fiquem alinhados.
+      Reutilizada tanto na pré-visualização quanto nas janelas de saída.
+    -->
+    <ItemsControl x:Name="Items"
+                  ItemsSource="{Binding ElementsSource, ElementName=Root}"
+                  ClipToBounds="True">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <Canvas/>
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+
+        <ItemsControl.ItemContainerStyle>
+            <Style TargetType="ContentPresenter">
+                <Setter Property="Canvas.Left">
+                    <Setter.Value>
+                        <MultiBinding Converter="{StaticResource SumConverter}">
+                            <Binding Path="X"/>
+                            <Binding Path="OffsetX" ElementName="Root"/>
+                        </MultiBinding>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Canvas.Top">
+                    <Setter.Value>
+                        <MultiBinding Converter="{StaticResource SumConverter}">
+                            <Binding Path="Y"/>
+                            <Binding Path="OffsetY" ElementName="Root"/>
+                        </MultiBinding>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Panel.ZIndex" Value="{Binding ZIndex}"/>
+                <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                <Setter Property="Visibility"
+                        Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            </Style>
+        </ItemsControl.ItemContainerStyle>
+    </ItemsControl>
+</UserControl>

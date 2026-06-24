@@ -1,0 +1,18 @@
+# Build
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Publicação e saída de instaladores
+dist/
+dist-viewer/
+instaladores/saida/
+
+# Redistribuíveis grandes (baixados localmente para gerar os instaladores)
+instaladores/redist/
+
+# Diversos
+*.log
+Thumbs.db

@@ -1,0 +1,664 @@
+<Window x:Class="VideoWall.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:VideoWall.Views"
+        Title="CPE Tecnologia · VideoWall"
+        Height="780" Width="1200"
+        MinHeight="600" MinWidth="980"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgApp}">
+
+    <Window.InputBindings>
+        <!-- Projetar / parar na tela de rede selecionada -->
+        <KeyBinding Key="F5" Command="{Binding SendLayoutToScreenCommand}"/>
+        <KeyBinding Key="F6" Command="{Binding ClearScreenCommand}"/>
+        <!-- Trocar layout por índice (ordem da lista) -->
+        <KeyBinding Modifiers="Control" Key="D1" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="0"/>
+        <KeyBinding Modifiers="Control" Key="D2" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="1"/>
+        <KeyBinding Modifiers="Control" Key="D3" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="2"/>
+        <KeyBinding Modifiers="Control" Key="D4" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="3"/>
+        <KeyBinding Modifiers="Control" Key="D5" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="4"/>
+        <KeyBinding Modifiers="Control" Key="D6" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="5"/>
+        <KeyBinding Modifiers="Control" Key="D7" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="6"/>
+        <KeyBinding Modifiers="Control" Key="D8" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="7"/>
+        <KeyBinding Modifiers="Control" Key="D9" Command="{Binding LoadLayoutByIndexCommand}" CommandParameter="8"/>
+    </Window.InputBindings>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ====================== CABEÇALHO COM LOGO CPE ====================== -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource CardInk}"
+                Padding="20,14" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Logo -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Grid Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <Ellipse Stroke="{StaticResource Gold}" StrokeThickness="2"/>
+                        <Ellipse Width="12" Stroke="{StaticResource Gold}" StrokeThickness="1.3"
+                                 HorizontalAlignment="Center"/>
+                        <Rectangle Height="1.3" Fill="{StaticResource Gold}" VerticalAlignment="Center"/>
+                    </Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="CPE" FontSize="20" FontWeight="Bold"
+                                       Foreground="{StaticResource OnDark}"/>
+                            <TextBlock Text="Tecnologia" FontSize="20"
+                                       Foreground="{StaticResource Gold}" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="VIDEOWALL · CONTROLADOR" FontFamily="Consolas" FontSize="10"
+                                   Foreground="{StaticResource OnDarkMuted}" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Tag codificada à direita -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Gold}" VerticalAlignment="Center"/>
+                        <TextBlock Text="EST · PAINEL DE CONTROLE · BR / 2026" FontFamily="Consolas"
+                                   FontSize="11" Foreground="{StaticResource OnDarkMuted}" Margin="8,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Desenvolvido por Jonathan Lopes" FontFamily="Consolas" FontSize="10"
+                               Foreground="{StaticResource OnDarkMuted}" HorizontalAlignment="Right"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ====================== BARRA LATERAL DE CONTROLE ====================== -->
+        <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource CardInk}"
+                Padding="16" Margin="0,0,16,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Projeção -->
+                    <TextBlock Text="PROJEÇÃO" Style="{StaticResource SectionLabel}"/>
+                    <Button Content="▶  Projetar na tela" Style="{StaticResource PanelButton}"
+                            Command="{Binding SendLayoutToScreenCommand}"
+                            ToolTip="Envia o layout para a tela de rede selecionada"/>
+                    <Button Content="■  Parar tela" Style="{StaticResource SubtleButton}"
+                            Command="{Binding ClearScreenCommand}"
+                            ToolTip="Limpa o conteúdo da tela de rede selecionada"/>
+                    <Button Content="🔴  Controle ao vivo" Style="{StaticResource SubtleButton}"
+                            Click="LiveControl_Click"
+                            IsEnabled="{Binding HasScreenSelected}"
+                            ToolTip="Controle o navegador do terminal em tempo real (rolagem, cliques, arraste, teclado)"/>
+
+                    <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
+
+                    <!-- Layouts (Assistente Visual) -->
+                    <TextBlock Text="LAYOUTS" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <ComboBox ItemsSource="{Binding Layouts}"
+                              SelectedItem="{Binding SelectedLayoutName}"
+                              Margin="0,0,0,8" Padding="6,4"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="📂 Carregar" Style="{StaticResource SubtleButton}"
+                                Command="{Binding LoadLayoutCommand}"/>
+                        <Button Grid.Column="2" Content="🗑 Excluir" Style="{StaticResource SubtleButton}"
+                                Command="{Binding DeleteLayoutCommand}"/>
+                    </Grid>
+                    <TextBox Style="{StaticResource NumberBox}"
+                             Text="{Binding NewLayoutName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome do novo layout"/>
+                    <Button Content="💾 Salvar layout atual" Style="{StaticResource PanelButton}"
+                            Command="{Binding SaveLayoutCommand}"/>
+                    <Button Content="⭐ Definir como principal" Style="{StaticResource SubtleButton}"
+                            Command="{Binding SetMainLayoutCommand}"
+                            ToolTip="O layout principal é carregado automaticamente ao abrir (fail-safe)"/>
+                    <TextBlock FontSize="11" Foreground="{StaticResource OnDarkMuted}" TextWrapping="Wrap" Margin="0,2,0,0">
+                        <Run Text="Principal: "/>
+                        <Run Text="{Binding MainLayoutName, Mode=OneWay, TargetNullValue=(nenhum)}"
+                             Foreground="{StaticResource Success}"/>
+                    </TextBlock>
+                    <TextBlock Text="Atalhos: F5 projetar · F6 parar · F11 tela cheia"
+                               FontFamily="Consolas" FontSize="10" Foreground="{StaticResource OnDarkMuted}"
+                               TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <Button Content="🕒 Agendador" Style="{StaticResource SubtleButton}"
+                            Click="OpenScheduler_Click" Margin="0,8,0,0"
+                            ToolTip="Trocar layouts automaticamente por horário"/>
+
+                    <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
+
+                    <!-- Grade (Grid) -->
+                    <TextBlock Text="GRADE" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <ComboBox ItemsSource="{Binding GridPresets}"
+                              SelectedItem="{Binding SelectedGridPreset}"
+                              Margin="0,0,0,8" Padding="6,4"/>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Colunas" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBox}"
+                                     Text="{Binding GridColumns, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Linhas" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBox}"
+                                     Text="{Binding GridRows, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox Content="Ajustar à grade (encaixe)" IsChecked="{Binding SnapToGrid}"
+                              Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="▦ Encaixar" Style="{StaticResource SubtleButton}"
+                                Command="{Binding FillCellCommand}"
+                                ToolTip="Encaixa a fonte selecionada na célula sob ela"/>
+                        <Button Grid.Column="2" Content="⊞ Distribuir" Style="{StaticResource SubtleButton}"
+                                Command="{Binding DistributeCommand}"
+                                ToolTip="Distribui todas as fontes nas células da grade"/>
+                    </Grid>
+
+                    <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
+
+                    <!-- Elementos -->
+                    <TextBlock Text="ADICIONAR FONTE" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <Button Content="➕  Cor" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddColorCommand}"/>
+                    <Button Content="➕  Texto" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddTextCommand}"/>
+                    <Button Content="➕  Imagem" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddImageCommand}"/>
+                    <Button Content="🌐  Navegador" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddBrowserCommand}"/>
+                    <Button Content="🖥  Aplicativo (espelhar janela)" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddWindowCaptureCommand}"/>
+                    <Button Content="📷  Câmera (RTSP)" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddCameraCommand}"/>
+
+                    <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
+
+                    <!-- Biblioteca de fontes (favoritos) -->
+                    <TextBlock Text="BIBLIOTECA DE FONTES" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <ListBox ItemsSource="{Binding Favorites}"
+                             SelectedItem="{Binding SelectedFavorite}"
+                             Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
+                             BorderThickness="1" Height="110" Margin="0,0,0,8">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="2">
+                                    <TextBlock Text="{Binding Category}" Foreground="{StaticResource Gold}"
+                                               FontFamily="Consolas" FontSize="11" Width="72"/>
+                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource OnDark}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="➕ À parede" Style="{StaticResource SubtleButton}"
+                                Command="{Binding AddFavoriteToWallCommand}"/>
+                        <Button Grid.Column="2" Content="🗑 Remover" Style="{StaticResource SubtleButton}"
+                                Command="{Binding RemoveFavoriteCommand}"/>
+                    </Grid>
+                    <Button Content="★ Salvar fonte selecionada" Style="{StaticResource SubtleButton}"
+                            Command="{Binding SaveSelectedAsFavoriteCommand}"
+                            ToolTip="Salva a fonte selecionada na parede como favorito"/>
+
+                    <TextBlock Text="Novo favorito" Style="{StaticResource FieldLabel}" Margin="0,4,0,2"/>
+                    <ComboBox ItemsSource="{Binding FavoriteCategories}"
+                              SelectedItem="{Binding NewFavoriteCategory}"
+                              Margin="0,0,0,6" Padding="6,4"/>
+                    <TextBox Style="{StaticResource NumberBox}"
+                             Text="{Binding NewFavoriteName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Nome do favorito"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Style="{StaticResource NumberBox}"
+                                 Text="{Binding NewFavoritePayload, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="URL, URL RTSP ou caminho da imagem"/>
+                        <Button Grid.Column="2" Content="📁" Style="{StaticResource SubtleButton}"
+                                Command="{Binding BrowseFavoritePayloadCommand}"
+                                Padding="10,4" ToolTip="Procurar imagem"/>
+                    </Grid>
+                    <Button Content="★ Adicionar favorito" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddFavoriteCommand}"/>
+
+                    <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
+
+                    <!-- Lista de elementos -->
+                    <TextBlock Text="FONTES NA PAREDE" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <ListBox ItemsSource="{Binding Elements}"
+                             SelectedItem="{Binding SelectedElement}"
+                             Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
+                             BorderThickness="1" Height="150" Margin="0,0,0,8"
+                             PreviewMouseRightButtonDown="ElementsList_PreviewMouseRightButtonDown">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="✎ Editar nome" Click="RenameSource_Click"/>
+                                <MenuItem Header="🗑 Remover" Click="RemoveSource_Click"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="56"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Kind}" Foreground="{StaticResource Gold}"
+                                               FontFamily="Consolas" FontSize="11" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource OnDark}" FontSize="12"/>
+                                        <TextBlock Text="{Binding Summary}" Foreground="{StaticResource OnDarkMuted}"
+                                                   FontFamily="Consolas" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="↑ Frente" Style="{StaticResource SubtleButton}"
+                                Command="{Binding BringToFrontCommand}"/>
+                        <Button Grid.Column="2" Content="↓ Trás" Style="{StaticResource SubtleButton}"
+                                Command="{Binding SendToBackCommand}"/>
+                    </Grid>
+                    <Button Content="🗑  Remover selecionado" Style="{StaticResource SubtleButton}"
+                            Command="{Binding RemoveSelectedCommand}"/>
+
+                    <!-- Editor de propriedades do elemento selecionado -->
+                    <Border Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
+                            BorderThickness="1" Padding="12" Margin="0,8,0,0"
+                            DataContext="{Binding SelectedElement}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock Text="PROPRIEDADES" Style="{StaticResource SectionLabel}"/>
+
+                            <!-- Nome (todas as fontes) -->
+                            <TextBlock Text="Nome" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBox}"
+                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Nome para identificar a fonte na lista"/>
+
+                            <!-- URL (apenas para a fonte Navegador) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Navegador">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="URL" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Style="{StaticResource NumberBox}"
+                                         Text="{Binding Url}"
+                                         ToolTip="Clique fora do campo para carregar a página"/>
+                                <TextBlock Style="{StaticResource FieldLabel}">
+                                    <Run Text="Zoom: "/>
+                                    <Run Text="{Binding ZoomFactor, Mode=OneWay, StringFormat=P0}"/>
+                                </TextBlock>
+                                <Slider Minimum="0.25" Maximum="3" Value="{Binding ZoomFactor}"
+                                        TickFrequency="0.25" IsSnapToTickEnabled="True" Margin="0,0,0,6"/>
+                            </StackPanel>
+
+                            <!-- URL RTSP (apenas para a fonte Câmera) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Câmera">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="URL RTSP" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Style="{StaticResource NumberBox}"
+                                         Text="{Binding StreamUrl}"
+                                         ToolTip="Ex.: rtsp://usuario:senha@host:554/stream — clique fora para conectar"/>
+                                <Button Content="▶ Testar transmissão" Style="{StaticResource SubtleButton}"
+                                        Click="TestCamera_Click"
+                                        ToolTip="Abre o stream numa janela para verificar a URL"/>
+                            </StackPanel>
+
+                            <!-- Conteúdo (apenas para a fonte Texto) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Texto">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Texto" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Style="{StaticResource NumberBox}"
+                                         Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48"
+                                         VerticalScrollBarVisibility="Auto"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Tamanho" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Style="{StaticResource NumberBox}"
+                                                 Text="{Binding FontSize, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Cor (hex)" Style="{StaticResource FieldLabel}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="6"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Style="{StaticResource NumberBox}"
+                                                     Text="{Binding ForegroundHex, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <Border Grid.Column="2" Width="22" Height="22" Margin="0,0,0,8"
+                                                    Background="{Binding ForegroundHex}"
+                                                    BorderBrush="{StaticResource HairDark}" BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Cor (apenas para a fonte Cor) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Cor">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Cor (hex)" Style="{StaticResource FieldLabel}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Style="{StaticResource NumberBox}"
+                                             Text="{Binding ColorHex, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Border Grid.Column="2" Width="22" Height="22" Margin="0,0,0,8"
+                                            Background="{Binding ColorHex}"
+                                            BorderBrush="{StaticResource HairDark}" BorderThickness="1"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Imagem (apenas para a fonte Imagem) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Kind}" Value="Imagem">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Arquivo da imagem" Style="{StaticResource FieldLabel}"/>
+                                <TextBox Style="{StaticResource NumberBox}"
+                                         Text="{Binding ImagePath, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Caminho do arquivo de imagem"/>
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="X" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Style="{StaticResource NumberBox}"
+                                             Text="{Binding X, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Y" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Style="{StaticResource NumberBox}"
+                                             Text="{Binding Y, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
+                                </StackPanel>
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Largura" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Style="{StaticResource NumberBox}"
+                                             Text="{Binding Width, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Altura" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Style="{StaticResource NumberBox}"
+                                             Text="{Binding Height, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Opacidade" Style="{StaticResource FieldLabel}"/>
+                            <Slider Minimum="0" Maximum="1" Value="{Binding Opacity}"
+                                    Margin="0,0,0,6"/>
+                            <CheckBox Content="Visível" IsChecked="{Binding IsVisible}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ====================== ÁREA PRINCIPAL ====================== -->
+        <Grid Grid.Row="1" Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Pré-visualização da parede -->
+            <Border Grid.Row="0" Background="{StaticResource CardInk}">
+                <Grid>
+                    <Grid Margin="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                            <TextBlock Text="PRÉ-VISUALIZAÇÃO" Style="{StaticResource SectionLabel}" Margin="0,0,0,2"/>
+                            <TextBlock Text="{Binding EditingTargetLabel}" Foreground="{StaticResource OnDark}"
+                                       FontSize="15" FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <!-- O Viewbox escala a parede inteira para caber na área disponível. -->
+                        <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="DownOnly">
+                            <Grid x:Name="PreviewSurface"
+                                  Width="{Binding WallWidth}" Height="{Binding WallHeight}"
+                                  Background="{StaticResource WallBg}"
+                                  Focusable="True" FocusVisualStyle="{x:Null}"
+                                  MouseLeftButtonDown="PreviewSurface_MouseLeftButtonDown"
+                                  MouseMove="PreviewSurface_MouseMove"
+                                  MouseLeftButtonUp="PreviewSurface_MouseLeftButtonUp"
+                                  MouseRightButtonDown="PreviewSurface_MouseRightButtonDown"
+                                  KeyDown="PreviewSurface_KeyDown">
+                                <Grid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="📋 Copiar (Ctrl+C)"
+                                                  Command="{Binding CopyCommand}"/>
+                                        <MenuItem Header="📥 Colar (Ctrl+V)"
+                                                  Command="{Binding PasteCommand}"/>
+                                        <Separator/>
+                                        <MenuItem Header="⛶ Preencher tela"
+                                                  Command="{Binding FillScreenCommand}"/>
+                                        <MenuItem Header="↑ Trazer para frente"
+                                                  Command="{Binding BringToFrontCommand}"/>
+                                        <MenuItem Header="↓ Enviar para trás"
+                                                  Command="{Binding SendToBackCommand}"/>
+                                        <Separator/>
+                                        <MenuItem Header="🗑 Remover fonte (Del)"
+                                                  Command="{Binding RemoveSelectedCommand}"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <!-- Contorno dos monitores -->
+                                <ItemsControl ItemsSource="{Binding PreviewMonitors}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                                            <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="{Binding Width}" Height="{Binding Height}"
+                                                    BorderBrush="#33363D" BorderThickness="2"
+                                                    Background="#121317">
+                                                <TextBlock Text="{Binding Label}" Foreground="#2E3036"
+                                                           FontSize="120" FontWeight="Bold"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Elementos da parede (mesma superfície das saídas) -->
+                                <views:WallSurfaceView ElementsSource="{Binding Elements}"
+                                                       OffsetX="{Binding WallOffsetX}"
+                                                       OffsetY="{Binding WallOffsetY}"/>
+
+                                <!-- Linhas da grade (apenas visual) -->
+                                <Canvas x:Name="GridCanvas" IsHitTestVisible="False"/>
+
+                                <!-- Retângulo de seleção (apenas visual) -->
+                                <Canvas IsHitTestVisible="False">
+                                    <Rectangle x:Name="SelectionRect"
+                                               Stroke="{StaticResource Gold}" StrokeThickness="4"
+                                               StrokeDashArray="4 2" Visibility="Collapsed"/>
+                                </Canvas>
+                            </Grid>
+                        </Viewbox>
+                    </Grid>
+
+                    <!-- Acento dourado no canto (assinatura CPE) -->
+                    <Polygon Points="0,0 20,0 20,20" Fill="{StaticResource Gold}"
+                             HorizontalAlignment="Right" VerticalAlignment="Top" IsHitTestVisible="False"/>
+                </Grid>
+            </Border>
+
+            <!-- Telas (terminais) na rede -->
+            <Border Grid.Row="1" Background="{StaticResource CardInk}" Padding="12" Margin="0,16,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="TELAS NA REDE" Style="{StaticResource SectionLabel}" Margin="0"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding RemoteScreens.Count}" Foreground="{StaticResource Gold}"
+                                   FontSize="13" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="— clique numa tela para editar/projetar nela" Foreground="{StaticResource OnDarkMuted}"
+                                   FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Grid>
+                        <ListBox ItemsSource="{Binding RemoteScreens}"
+                                 SelectedItem="{Binding SelectedScreen}"
+                                 Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
+                                 BorderThickness="1" MaxHeight="130">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                        <Ellipse Width="8" Height="8" Fill="{StaticResource Success}"
+                                                 VerticalAlignment="Center"/>
+                                        <!-- Miniatura do que a tela está exibindo: foto ao vivo
+                                             do terminal (se disponível) sobre o layout enviado -->
+                                        <Border Width="80" Height="45" Margin="8,0,0,0"
+                                                Background="#0C0D10" BorderBrush="{StaticResource HairDark}"
+                                                BorderThickness="1" ClipToBounds="True">
+                                            <Grid>
+                                                <Viewbox Stretch="Uniform">
+                                                    <Grid Width="1920" Height="1080" Background="#0C0D10">
+                                                        <views:WallSurfaceView ElementsSource="{Binding Layout}"
+                                                                               OffsetX="0" OffsetY="0"/>
+                                                    </Grid>
+                                                </Viewbox>
+                                                <Image Source="{Binding LiveThumbnail}" Stretch="Uniform"/>
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource OnDark}"
+                                                       FontSize="12" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding IpAddress}" Foreground="{StaticResource OnDarkMuted}"
+                                                       FontFamily="Consolas" FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Barra de status -->
+        <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,16,0,0"
+                Background="{StaticResource CardInk}" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="7" Height="7" Fill="{StaticResource Gold}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusMessage}" FontFamily="Consolas" FontSize="12"
+                           Foreground="{StaticResource OnDarkMuted}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
