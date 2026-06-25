@@ -660,6 +660,9 @@
                     <TextBlock Text="{Binding StatusMessage}" FontFamily="Consolas" FontSize="12"
                                Foreground="{StaticResource OnDarkMuted}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
+                <TextBlock Text="Desenvolvido por Jonathan Lopes" FontSize="12"
+                           Foreground="{StaticResource OnDarkMuted}" HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
                 <TextBlock x:Name="VersionLabel" Text="v—" FontFamily="Consolas" FontSize="12"
                            Foreground="{StaticResource OnDarkMuted}" HorizontalAlignment="Right"
                            VerticalAlignment="Center"/>

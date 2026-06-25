@@ -52,5 +52,8 @@
             <Run Text="Esc para sair  ·  " Foreground="#45474F"/><Run x:Name="FooterVersionRun"
                  Foreground="#F2B705" FontWeight="Bold"/>
         </TextBlock>
+        <TextBlock Text="Desenvolvido por Jonathan Lopes" FontSize="12" Foreground="#45474F"
+                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12"
+                   Panel.ZIndex="30"/>
     </Grid>
 </Window>
