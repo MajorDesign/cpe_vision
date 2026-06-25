@@ -155,7 +155,11 @@
                                FontFamily="Consolas" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <Separator Margin="0,18,0,12" Background="{StaticResource HairDark}"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{Binding SchedulerToggleText}" Width="210" Margin="0,0,8,0"
+                            Command="{Binding ToggleSchedulerCommand}" Style="{StaticResource PanelButton}"
+                            ToolTip="Pausa/retoma os agendamentos POR HORÁRIO (a rotação tem o próprio Parar)"/>
                     <Button Content="Fechar" Width="100" Click="OnClose" Style="{StaticResource SubtleButton}"/>
                 </StackPanel>
             </StackPanel>

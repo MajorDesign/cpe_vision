@@ -30,6 +30,7 @@ namespace VideoWall.ViewModels
         private bool _isRotating;
         private int _rotationIndex;
         private string _rotationStatus = "Parado";
+        private bool _schedulerPaused;
         private UdpBeacon? _controllerBeacon;
         private UpdateServer? _updateServer;
         private bool _pollingThumbnails;
@@ -211,6 +212,15 @@ namespace VideoWall.ViewModels
             get => _rotationStatus;
             private set => SetProperty(ref _rotationStatus, value);
         }
+
+        /// <summary>Quando pausado, os agendamentos por horário não disparam.</summary>
+        public bool SchedulerPaused
+        {
+            get => _schedulerPaused;
+            private set { if (SetProperty(ref _schedulerPaused, value)) OnPropertyChanged(nameof(SchedulerToggleText)); }
+        }
+
+        public string SchedulerToggleText => SchedulerPaused ? "▶ Retomar agendador" : "⏸ Pausar agendador";
 
         public bool DaySun { get => _daySun; set => SetProperty(ref _daySun, value); }
         public bool DayMon { get => _dayMon; set => SetProperty(ref _dayMon, value); }
@@ -579,6 +589,7 @@ namespace VideoWall.ViewModels
         public ICommand RemoveRotationLayoutCommand { get; }
         public ICommand StartRotationCommand { get; }
         public ICommand StopRotationCommand { get; }
+        public ICommand ToggleSchedulerCommand { get; }
         public ICommand FillCellCommand { get; }
         public ICommand DistributeCommand { get; }
         public ICommand AddFavoriteCommand { get; }
@@ -641,6 +652,7 @@ namespace VideoWall.ViewModels
             StartRotationCommand = new RelayCommand(StartRotation,
                 () => !IsRotating && RotationLayouts.Count >= 1 && RotationScreen != null && RotationMinutes >= 1);
             StopRotationCommand = new RelayCommand(StopRotation, () => IsRotating);
+            ToggleSchedulerCommand = new RelayCommand(ToggleScheduler);
             FillCellCommand = new RelayCommand(FillSelectedCell, () => SelectedElement != null && GridIsValid);
             DistributeCommand = new RelayCommand(DistributeToGrid, () => Elements.Count > 0 && GridIsValid);
             AddFavoriteCommand = new RelayCommand(AddFavorite,
@@ -655,8 +667,9 @@ namespace VideoWall.ViewModels
             LoadFavorites();
             LoadSchedules();
 
-            // Verifica os agendamentos periodicamente.
-            _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+            // Verifica os agendamentos periodicamente (prioridade Normal para não ser
+            // adiada quando a interface está ocupada; roda mesmo minimizado/em segundo plano).
+            _scheduleTimer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromSeconds(15) };
             _scheduleTimer.Tick += (_, _) => CheckSchedules();
             _scheduleTimer.Start();
 
@@ -1398,8 +1411,19 @@ namespace VideoWall.ViewModels
         }
 
         /// <summary>Verifica, a cada tique, se algum agendamento deve disparar agora.</summary>
+        private void ToggleScheduler()
+        {
+            SchedulerPaused = !SchedulerPaused;
+            StatusMessage = SchedulerPaused
+                ? "Agendador pausado (os agendamentos por horário não vão disparar)."
+                : "Agendador retomado.";
+        }
+
         private void CheckSchedules()
         {
+            if (SchedulerPaused)
+                return;
+
             var now = DateTime.Now;
 
             foreach (var entry in Schedules)
