@@ -115,11 +115,13 @@
                         <Button Grid.Column="2" Content="🗑 Excluir" Style="{StaticResource SubtleButton}"
                                 Command="{Binding DeleteLayoutCommand}"/>
                     </Grid>
+                    <TextBlock Text="Nome do layout (digite para salvar)" Style="{StaticResource FieldLabel}"/>
                     <TextBox Style="{StaticResource NumberBox}"
                              Text="{Binding NewLayoutName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Nome do novo layout"/>
+                             ToolTip="Dê um nome (ex.: Manhã 2x2) para habilitar o botão Salvar"/>
                     <Button Content="💾 Salvar layout atual" Style="{StaticResource PanelButton}"
-                            Command="{Binding SaveLayoutCommand}"/>
+                            Command="{Binding SaveLayoutCommand}"
+                            ToolTip="Salva a parede atual como um layout reutilizável (precisa de um nome acima)"/>
                     <Button Content="⭐ Definir como principal" Style="{StaticResource SubtleButton}"
                             Command="{Binding SetMainLayoutCommand}"
                             ToolTip="O layout principal é carregado automaticamente ao abrir (fail-safe)"/>
