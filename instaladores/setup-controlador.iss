@@ -24,12 +24,18 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayName={#AppName}
+; Identidade visual CPE
+SetupIconFile=..\assets\cpe.ico
+UninstallDisplayIcon={app}\VideoWall.exe
 ; Fecha o controlador em uso para conseguir trocar os arquivos.
 CloseApplications=force
 RestartApplications=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Atalhos:"
 
 [Files]
 ; Todos os arquivos publicados do Controlador (app + libvlc + webview2 etc.)
@@ -39,7 +45,7 @@ Source: "redist\windowsdesktop-runtime-8-win-x64.exe"; DestDir: "{tmp}"; Flags: 
 Source: "redist\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2
 
 [Icons]
-Name: "{commondesktop}\CPE VideoWall"; Filename: "{app}\VideoWall.exe"
+Name: "{autodesktop}\CPE VideoWall Controlador"; Filename: "{app}\VideoWall.exe"; Tasks: desktopicon
 Name: "{group}\CPE VideoWall Controlador"; Filename: "{app}\VideoWall.exe"
 Name: "{group}\Desinstalar Controlador"; Filename: "{uninstallexe}"
 

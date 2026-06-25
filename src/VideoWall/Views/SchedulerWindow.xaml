@@ -22,7 +22,7 @@
 
             <StackPanel Grid.Row="0" Margin="0,0,0,12">
                 <TextBlock Text="AGENDADOR" Style="{StaticResource SectionLabel}" Margin="0,0,0,2"/>
-                <TextBlock Text="Troca automática de layout por horário"
+                <TextBlock Text="Troca automática de layout por horário, em cada tela"
                            Foreground="{StaticResource OnDark}" FontSize="16" FontWeight="SemiBold"/>
             </StackPanel>
 
@@ -46,7 +46,11 @@
                                            FontFamily="Consolas" FontSize="16" FontWeight="Bold" Width="64"
                                            VerticalAlignment="Center"/>
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding LayoutName}" Foreground="{StaticResource OnDark}" FontSize="13"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding LayoutName}" Foreground="{StaticResource OnDark}" FontSize="13"/>
+                                        <TextBlock Text="{Binding ScreenText}" Foreground="{StaticResource Gold}"
+                                                   FontSize="13" Margin="8,0,0,0"/>
+                                    </StackPanel>
                                     <TextBlock Text="{Binding DaysText}" Foreground="{StaticResource OnDarkMuted}"
                                                FontFamily="Consolas" FontSize="11"/>
                                 </StackPanel>
@@ -80,6 +84,10 @@
                                   Padding="6,4"/>
                     </StackPanel>
                 </Grid>
+
+                <TextBlock Text="Tela (terminal de destino)" Style="{StaticResource FieldLabel}" Margin="0,10,0,0"/>
+                <ComboBox ItemsSource="{Binding RemoteScreens}" SelectedItem="{Binding NewScheduleScreen}"
+                          DisplayMemberPath="Name" Padding="6,4"/>
 
                 <TextBlock Text="Dias (nenhum marcado = todos os dias)" Style="{StaticResource FieldLabel}" Margin="0,10,0,4"/>
                 <WrapPanel>

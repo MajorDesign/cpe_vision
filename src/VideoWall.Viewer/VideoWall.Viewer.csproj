@@ -8,8 +8,9 @@
     <AssemblyName>VideoWall.Viewer</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\..\assets\cpe.ico</ApplicationIcon>
     <!-- Versão do terminal. Suba este número antes de publicar uma atualização. -->
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

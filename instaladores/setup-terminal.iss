@@ -23,12 +23,18 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayName={#AppName}
+; Identidade visual CPE
+SetupIconFile=..\assets\cpe.ico
+UninstallDisplayIcon={app}\VideoWall.Viewer.exe
 ; Fecha o terminal em uso (auto-start do quiosque) para conseguir trocar o .exe.
 CloseApplications=force
 RestartApplications=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Atalhos:"
 
 [Files]
 Source: "..\dist\Terminal\VideoWall.Viewer.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -41,6 +47,7 @@ Source: "redist\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: delete
 Name: "{commonstartup}\CPE VideoWall Terminal"; Filename: "{app}\VideoWall.Viewer.exe"
 Name: "{group}\CPE VideoWall Terminal"; Filename: "{app}\VideoWall.Viewer.exe"
 Name: "{group}\Desinstalar Terminal"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\CPE VideoWall Terminal"; Filename: "{app}\VideoWall.Viewer.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\windowsdesktop-runtime-8-win-x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Instalando o runtime .NET 8..."; Flags: waituntilterminated; Check: NeedsDotNet

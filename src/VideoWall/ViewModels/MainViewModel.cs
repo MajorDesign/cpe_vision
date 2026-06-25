@@ -36,6 +36,7 @@ namespace VideoWall.ViewModels
         private int _newScheduleHour = 8;
         private int _newScheduleMinute;
         private string? _newScheduleLayout;
+        private RemoteScreen? _newScheduleScreen;
         private bool _daySun, _dayMon, _dayTue, _dayWed, _dayThu, _dayFri, _daySat;
         private WallElement? _clipboardElement;
         private int _pasteCount;
@@ -143,6 +144,17 @@ namespace VideoWall.ViewModels
             set
             {
                 if (SetProperty(ref _newScheduleLayout, value))
+                    CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        /// <summary>Tela (terminal) de destino do novo agendamento.</summary>
+        public RemoteScreen? NewScheduleScreen
+        {
+            get => _newScheduleScreen;
+            set
+            {
+                if (SetProperty(ref _newScheduleScreen, value))
                     CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -534,7 +546,8 @@ namespace VideoWall.ViewModels
             DeleteLayoutCommand = new RelayCommand(DeleteLayout, () => !string.IsNullOrWhiteSpace(SelectedLayoutName));
             SetMainLayoutCommand = new RelayCommand(SetMainLayout, () => !string.IsNullOrWhiteSpace(SelectedLayoutName));
             LoadLayoutByIndexCommand = new RelayCommand<string>(LoadLayoutByIndex);
-            AddScheduleCommand = new RelayCommand(AddSchedule, () => !string.IsNullOrWhiteSpace(NewScheduleLayout));
+            AddScheduleCommand = new RelayCommand(AddSchedule,
+                () => !string.IsNullOrWhiteSpace(NewScheduleLayout) && NewScheduleScreen != null);
             RemoveScheduleCommand = new RelayCommand(RemoveSchedule, () => SelectedSchedule != null);
             FillCellCommand = new RelayCommand(FillSelectedCell, () => SelectedElement != null && GridIsValid);
             DistributeCommand = new RelayCommand(DistributeToGrid, () => Elements.Count > 0 && GridIsValid);
@@ -1254,7 +1267,7 @@ namespace VideoWall.ViewModels
 
         private void AddSchedule()
         {
-            if (string.IsNullOrWhiteSpace(NewScheduleLayout))
+            if (string.IsNullOrWhiteSpace(NewScheduleLayout) || NewScheduleScreen == null)
                 return;
 
             var days = new List<int>();
@@ -1272,6 +1285,8 @@ namespace VideoWall.ViewModels
                 Minute = NewScheduleMinute,
                 Days = days,
                 LayoutName = NewScheduleLayout!,
+                ScreenId = NewScheduleScreen.Id,
+                ScreenName = NewScheduleScreen.Name,
                 Enabled = true,
             });
 
@@ -1281,7 +1296,7 @@ namespace VideoWall.ViewModels
             foreach (var s in ordered) Schedules.Add(s);
 
             SaveSchedules();
-            StatusMessage = $"Agendamento adicionado: {NewScheduleHour:00}:{NewScheduleMinute:00} → {NewScheduleLayout}";
+            StatusMessage = $"Agendamento: {NewScheduleHour:00}:{NewScheduleMinute:00} → {NewScheduleLayout} em {NewScheduleScreen.Name}";
         }
 
         private void RemoveSchedule()
@@ -1327,9 +1342,22 @@ namespace VideoWall.ViewModels
                 return;
             }
 
+            // Mira a tela (terminal) do agendamento e projeta o layout nela.
+            var screen = RemoteScreens.FirstOrDefault(s => s.Id == entry.ScreenId);
+            if (screen == null)
+            {
+                StatusMessage = $"Agendamento {entry.TimeText}: tela '{entry.ScreenText}' não está na rede.";
+                return;
+            }
+
+            SelectedScreen = screen;
             ApplyLayout(loaded);
             SelectedLayoutName = entry.LayoutName;
-            StatusMessage = $"Agendamento {entry.TimeText}: layout '{entry.LayoutName}' carregado.";
+
+            if (SendLayoutToScreenCommand.CanExecute(null))
+                SendLayoutToScreenCommand.Execute(null);
+
+            StatusMessage = $"Agendamento {entry.TimeText}: '{entry.LayoutName}' projetado em {screen.Name}.";
         }
 
         /// <summary>Tenta religar a captura de uma fonte de aplicativo pelo título da janela.</summary>
