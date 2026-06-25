@@ -36,9 +36,12 @@ namespace VideoWall.Views
                     string installer = await GitHubUpdater.DownloadToTempAsync(url, AssetName);
 
                     StatusText.Text = "Instalando atualização…";
+                    // Instalação SILENCIOSA (sem assistente). Fecha o app em uso, instala
+                    // e reabre o controlador sozinho (ver [Run] WizardSilent no instalador).
                     Process.Start(new ProcessStartInfo
                     {
                         FileName = installer,
+                        Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS",
                         UseShellExecute = true,
                     });
 

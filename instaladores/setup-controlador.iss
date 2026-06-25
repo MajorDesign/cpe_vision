@@ -55,6 +55,10 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 ; Libera o app no Firewall (descoberta/controle das telas na rede)
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""CPE VideoWall Controlador"""; Flags: runhidden; StatusMsg: "Configurando firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""CPE VideoWall Controlador"" dir=in action=allow program=""{app}\VideoWall.exe"" enable=yes profile=any"; Flags: runhidden waituntilterminated; StatusMsg: "Configurando firewall..."
+; Em atualização silenciosa (auto-update), reabre o controlador automaticamente
+; (como usuário normal, sem privilégio elevado).
+Filename: "{app}\VideoWall.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
+; Em instalação manual, oferece iniciar ao final.
 Filename: "{app}\VideoWall.exe"; Description: "Iniciar o Controlador agora"; Flags: nowait postinstall skipifsilent
 
 [Code]
