@@ -59,7 +59,9 @@ namespace VideoWall.Viewer
         public MainWindow()
         {
             InitializeComponent();
-            FooterText.Text = $"Esc para sair · v{GitHubUpdater.CurrentVersion()}";
+            string version = "v" + GitHubUpdater.CurrentVersion();
+            FooterVersionRun.Text = version;
+            VersionLine.Text = "VERSÃO  " + version;
             Loaded += OnLoaded;
             Closed += OnClosed;
         }
