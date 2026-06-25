@@ -21,8 +21,9 @@
           DataTemplates por tipo de elemento, resolvidos automaticamente pelo WPF
           tanto na pré-visualização quanto nas janelas de saída.
         -->
+        <!-- Fonte Cor: moldura colorida (borda) para identificar uma célula por cor -->
         <DataTemplate DataType="{x:Type models:ColorElement}">
-            <Border Background="{Binding ColorHex}"
+            <Border BorderBrush="{Binding ColorHex}" BorderThickness="14" Background="Transparent"
                     Width="{Binding Width}"
                     Height="{Binding Height}"/>
         </DataTemplate>

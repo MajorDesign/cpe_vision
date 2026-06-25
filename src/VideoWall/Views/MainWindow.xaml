@@ -181,10 +181,12 @@
 
                     <!-- Elementos -->
                     <TextBlock Text="ADICIONAR FONTE" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
-                    <Button Content="➕  Cor" Style="{StaticResource SubtleButton}"
-                            Command="{Binding AddColorCommand}"/>
+                    <Button Content="➕  Cor (borda da célula)" Style="{StaticResource SubtleButton}"
+                            Command="{Binding AddColorCommand}"
+                            ToolTip="Adiciona uma moldura colorida para identificar uma célula por cor"/>
                     <Button Content="➕  Texto" Style="{StaticResource SubtleButton}"
-                            Command="{Binding AddTextCommand}"/>
+                            Click="AddText_Click"
+                            ToolTip="Adiciona um texto e abre a janela para escrever"/>
                     <Button Content="➕  Imagem" Style="{StaticResource SubtleButton}"
                             Command="{Binding AddImageCommand}"/>
                     <Button Content="🌐  Navegador" Style="{StaticResource SubtleButton}"

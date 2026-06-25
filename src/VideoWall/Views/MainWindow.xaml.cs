@@ -109,6 +109,30 @@ namespace VideoWall.Views
                 _viewModel.SendLayoutToScreenCommand.Execute(null);
         }
 
+        /// <summary>Adiciona um Texto e já abre a janela para escrever.</summary>
+        private void AddText_Click(object sender, RoutedEventArgs e)
+        {
+            _viewModel.AddTextCommand.Execute(null);
+            if (_viewModel.SelectedElement is Models.TextElement text)
+                EditText(text);
+        }
+
+        /// <summary>Edita o conteúdo/tamanho/cor de um Texto (duplo-clique na pré-visualização).</summary>
+        private void EditText(Models.TextElement text)
+        {
+            var dialog = new TextEditWindow(text) { Owner = this };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            text.Text = dialog.ResultText;
+            text.FontSize = dialog.ResultFontSize;
+            text.ForegroundHex = dialog.ResultColorHex;
+
+            // Atualiza no terminal na hora.
+            if (_viewModel.SendLayoutToScreenCommand.CanExecute(null))
+                _viewModel.SendLayoutToScreenCommand.Execute(null);
+        }
+
         private void LiveControl_Click(object sender, RoutedEventArgs e)
         {
             var screen = _viewModel.SelectedScreen;
@@ -355,6 +379,14 @@ namespace VideoWall.Views
             if (e.ClickCount == 2 && hit is Models.BrowserElement browser)
             {
                 EditBrowserUrl(browser);
+                e.Handled = true;
+                return;
+            }
+
+            // Duplo-clique num texto: abre a janela para escrever.
+            if (e.ClickCount == 2 && hit is Models.TextElement text)
+            {
+                EditText(text);
                 e.Handled = true;
                 return;
             }

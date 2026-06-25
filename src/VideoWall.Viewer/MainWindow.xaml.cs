@@ -199,13 +199,21 @@ namespace VideoWall.Viewer
 
             if (src.Kind == ScreenSource.Color)
             {
+                // Cor = moldura colorida (borda) para identificar a célula por cor.
                 if (existing is Border b)
                 {
-                    b.Background = ToBrush(src.ColorHex, Brushes.Black);
+                    b.BorderBrush = ToBrush(src.ColorHex, Brushes.Gold);
+                    b.BorderThickness = new Thickness(12);
+                    b.Background = Brushes.Transparent;
                     _slotUrls[i] = null;
                     return b;
                 }
-                var nb = new Border { Background = ToBrush(src.ColorHex, Brushes.Black) };
+                var nb = new Border
+                {
+                    BorderBrush = ToBrush(src.ColorHex, Brushes.Gold),
+                    BorderThickness = new Thickness(12),
+                    Background = Brushes.Transparent,
+                };
                 SetSlot(i, nb);
                 _slotUrls[i] = null;
                 return nb;
