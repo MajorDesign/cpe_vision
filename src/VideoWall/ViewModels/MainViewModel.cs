@@ -21,7 +21,15 @@ namespace VideoWall.ViewModels
         private readonly IScheduleService _scheduleService;
         private readonly DispatcherTimer _scheduleTimer;
         private readonly DispatcherTimer _thumbnailTimer;
+        private readonly DispatcherTimer _rotationTimer;
         private readonly ViewerDiscoveryListener _discovery;
+        private RemoteScreen? _rotationScreen;
+        private int _rotationMinutes = 5;
+        private string? _rotationPickLayout;
+        private string? _selectedRotationLayout;
+        private bool _isRotating;
+        private int _rotationIndex;
+        private string _rotationStatus = "Parado";
         private UdpBeacon? _controllerBeacon;
         private UpdateServer? _updateServer;
         private bool _pollingThumbnails;
@@ -73,6 +81,9 @@ namespace VideoWall.ViewModels
         public ObservableCollection<SourceFavorite> Favorites { get; } = new();
         public ObservableCollection<string> FavoriteCategories { get; } = new() { "Web", "Câmera", "Imagem" };
         public ObservableCollection<ScheduleEntry> Schedules { get; } = new();
+
+        /// <summary>Sequência de layouts da rotação automática (troca a cada X min).</summary>
+        public ObservableCollection<string> RotationLayouts { get; } = new();
 
         /// <summary>Telas (mini-PCs com o Viewer) encontradas na rede.</summary>
         public ObservableCollection<RemoteScreen> RemoteScreens { get; } = new();
@@ -159,6 +170,48 @@ namespace VideoWall.ViewModels
             }
         }
 
+        // ---------------- Rotação automática (player: troca a cada X min) ----------------
+
+        /// <summary>Tela de destino da rotação.</summary>
+        public RemoteScreen? RotationScreen
+        {
+            get => _rotationScreen;
+            set { if (SetProperty(ref _rotationScreen, value)) CommandManager.InvalidateRequerySuggested(); }
+        }
+
+        /// <summary>Intervalo (minutos) entre as trocas de layout na rotação.</summary>
+        public int RotationMinutes
+        {
+            get => _rotationMinutes;
+            set { if (SetProperty(ref _rotationMinutes, Math.Clamp(value, 1, 1440))) CommandManager.InvalidateRequerySuggested(); }
+        }
+
+        /// <summary>Layout escolhido para adicionar à sequência da rotação.</summary>
+        public string? RotationPickLayout
+        {
+            get => _rotationPickLayout;
+            set { if (SetProperty(ref _rotationPickLayout, value)) CommandManager.InvalidateRequerySuggested(); }
+        }
+
+        /// <summary>Item selecionado na sequência (para remover).</summary>
+        public string? SelectedRotationLayout
+        {
+            get => _selectedRotationLayout;
+            set { if (SetProperty(ref _selectedRotationLayout, value)) CommandManager.InvalidateRequerySuggested(); }
+        }
+
+        public bool IsRotating
+        {
+            get => _isRotating;
+            private set { if (SetProperty(ref _isRotating, value)) CommandManager.InvalidateRequerySuggested(); }
+        }
+
+        public string RotationStatus
+        {
+            get => _rotationStatus;
+            private set => SetProperty(ref _rotationStatus, value);
+        }
+
         public bool DaySun { get => _daySun; set => SetProperty(ref _daySun, value); }
         public bool DayMon { get => _dayMon; set => SetProperty(ref _dayMon, value); }
         public bool DayTue { get => _dayTue; set => SetProperty(ref _dayTue, value); }
@@ -203,14 +256,44 @@ namespace VideoWall.ViewModels
             }
         }
 
+        private bool _autoLoadLayout = true;
+
         public string? SelectedLayoutName
         {
             get => _selectedLayoutName;
             set
             {
                 if (SetProperty(ref _selectedLayoutName, value))
+                {
                     CommandManager.InvalidateRequerySuggested();
+                    // Selecionar um layout PRÉ-VISUALIZA na parede (não projeta).
+                    if (_autoLoadLayout && !string.IsNullOrWhiteSpace(value))
+                        LoadLayoutByName(value!, announce: false);
+                }
             }
+        }
+
+        /// <summary>Define o layout selecionado sem disparar a pré-visualização automática.</summary>
+        private void SetSelectedLayoutSilent(string? name)
+        {
+            bool prev = _autoLoadLayout;
+            _autoLoadLayout = false;
+            SelectedLayoutName = name;
+            _autoLoadLayout = prev;
+        }
+
+        /// <summary>Carrega um layout salvo na parede (pré-visualização). Não projeta.</summary>
+        private bool LoadLayoutByName(string name, bool announce)
+        {
+            var loaded = _layoutService.Load(name);
+            if (loaded == null)
+            {
+                if (announce) StatusMessage = $"Layout não encontrado: {name}";
+                return false;
+            }
+            ApplyLayout(loaded);
+            if (announce) StatusMessage = $"Layout carregado: {name}";
+            return true;
         }
 
         public string NewLayoutName
@@ -492,6 +575,10 @@ namespace VideoWall.ViewModels
         public ICommand LoadLayoutByIndexCommand { get; }
         public ICommand AddScheduleCommand { get; }
         public ICommand RemoveScheduleCommand { get; }
+        public ICommand AddRotationLayoutCommand { get; }
+        public ICommand RemoveRotationLayoutCommand { get; }
+        public ICommand StartRotationCommand { get; }
+        public ICommand StopRotationCommand { get; }
         public ICommand FillCellCommand { get; }
         public ICommand DistributeCommand { get; }
         public ICommand AddFavoriteCommand { get; }
@@ -549,6 +636,11 @@ namespace VideoWall.ViewModels
             AddScheduleCommand = new RelayCommand(AddSchedule,
                 () => !string.IsNullOrWhiteSpace(NewScheduleLayout) && NewScheduleScreen != null);
             RemoveScheduleCommand = new RelayCommand(RemoveSchedule, () => SelectedSchedule != null);
+            AddRotationLayoutCommand = new RelayCommand(AddRotationLayout, () => !string.IsNullOrWhiteSpace(RotationPickLayout));
+            RemoveRotationLayoutCommand = new RelayCommand(RemoveRotationLayout, () => SelectedRotationLayout != null);
+            StartRotationCommand = new RelayCommand(StartRotation,
+                () => !IsRotating && RotationLayouts.Count >= 1 && RotationScreen != null && RotationMinutes >= 1);
+            StopRotationCommand = new RelayCommand(StopRotation, () => IsRotating);
             FillCellCommand = new RelayCommand(FillSelectedCell, () => SelectedElement != null && GridIsValid);
             DistributeCommand = new RelayCommand(DistributeToGrid, () => Elements.Count > 0 && GridIsValid);
             AddFavoriteCommand = new RelayCommand(AddFavorite,
@@ -567,6 +659,11 @@ namespace VideoWall.ViewModels
             _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
             _scheduleTimer.Tick += (_, _) => CheckSchedules();
             _scheduleTimer.Start();
+
+            // Player de rotação (troca de layout a cada X min); inicia parado.
+            _rotationTimer = new DispatcherTimer();
+            _rotationTimer.Tick += (_, _) => RotationTick();
+            RotationLayouts.CollectionChanged += (_, _) => CommandManager.InvalidateRequerySuggested();
 
             // Descobre automaticamente as telas (Viewers) na rede.
             _discovery = new ViewerDiscoveryListener();
@@ -1016,7 +1113,7 @@ namespace VideoWall.ViewModels
             foreach (var name in _layoutService.List())
                 Layouts.Add(name);
 
-            SelectedLayoutName = Layouts.Contains(previous ?? string.Empty) ? previous : Layouts.FirstOrDefault();
+            SetSelectedLayoutSilent(Layouts.Contains(previous ?? string.Empty) ? previous : Layouts.FirstOrDefault());
         }
 
         private void SaveLayout()
@@ -1027,24 +1124,14 @@ namespace VideoWall.ViewModels
 
             _layoutService.Save(name, Elements);
             RefreshLayouts();
-            SelectedLayoutName = name;
+            SetSelectedLayoutSilent(name);
             StatusMessage = $"Layout salvo: {name}";
         }
 
         private void LoadLayout()
         {
-            if (string.IsNullOrWhiteSpace(SelectedLayoutName))
-                return;
-
-            var loaded = _layoutService.Load(SelectedLayoutName);
-            if (loaded == null)
-            {
-                StatusMessage = $"Layout não encontrado: {SelectedLayoutName}";
-                return;
-            }
-
-            ApplyLayout(loaded);
-            StatusMessage = $"Layout carregado: {SelectedLayoutName}";
+            if (!string.IsNullOrWhiteSpace(SelectedLayoutName))
+                LoadLayoutByName(SelectedLayoutName, announce: true);
         }
 
         private void DeleteLayout()
@@ -1085,8 +1172,8 @@ namespace VideoWall.ViewModels
             if (!int.TryParse(indexText, out int index) || index < 0 || index >= Layouts.Count)
                 return;
 
-            SelectedLayoutName = Layouts[index];
-            LoadLayout();
+            SetSelectedLayoutSilent(Layouts[index]);
+            LoadLayoutByName(Layouts[index], announce: true);
         }
 
         /// <summary>
@@ -1103,7 +1190,7 @@ namespace VideoWall.ViewModels
                 return;
 
             ApplyLayout(loaded);
-            SelectedLayoutName = MainLayoutName;
+            SetSelectedLayoutSilent(MainLayoutName);
             StatusMessage = $"Layout principal carregado: {MainLayoutName}";
         }
 
@@ -1352,12 +1439,89 @@ namespace VideoWall.ViewModels
 
             SelectedScreen = screen;
             ApplyLayout(loaded);
-            SelectedLayoutName = entry.LayoutName;
+            SetSelectedLayoutSilent(entry.LayoutName);
 
             if (SendLayoutToScreenCommand.CanExecute(null))
                 SendLayoutToScreenCommand.Execute(null);
 
             StatusMessage = $"Agendamento {entry.TimeText}: '{entry.LayoutName}' projetado em {screen.Name}.";
+        }
+
+        // ---------------- Rotação automática (player) ----------------
+
+        private void AddRotationLayout()
+        {
+            if (string.IsNullOrWhiteSpace(RotationPickLayout))
+                return;
+            RotationLayouts.Add(RotationPickLayout!);
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void RemoveRotationLayout()
+        {
+            if (SelectedRotationLayout != null)
+                RotationLayouts.Remove(SelectedRotationLayout);
+            SelectedRotationLayout = null;
+        }
+
+        private void StartRotation()
+        {
+            if (IsRotating || RotationLayouts.Count == 0 || RotationScreen == null || RotationMinutes < 1)
+                return;
+
+            IsRotating = true;
+            _rotationIndex = 0;
+            ProjectRotationCurrent();                       // mostra o 1º layout já
+            _rotationTimer.Interval = TimeSpan.FromMinutes(RotationMinutes);
+            _rotationTimer.Start();
+        }
+
+        private void StopRotation()
+        {
+            _rotationTimer.Stop();
+            IsRotating = false;
+            RotationStatus = "Parado";
+        }
+
+        private void RotationTick()
+        {
+            if (RotationLayouts.Count == 0)
+            {
+                StopRotation();
+                return;
+            }
+            _rotationIndex = (_rotationIndex + 1) % RotationLayouts.Count;
+            ProjectRotationCurrent();
+        }
+
+        /// <summary>Projeta o layout atual da sequência na tela da rotação.</summary>
+        private void ProjectRotationCurrent()
+        {
+            if (_rotationIndex < 0 || _rotationIndex >= RotationLayouts.Count || RotationScreen == null)
+                return;
+
+            string name = RotationLayouts[_rotationIndex];
+            var screen = RemoteScreens.FirstOrDefault(s => s.Id == RotationScreen.Id);
+            if (screen == null)
+            {
+                RotationStatus = $"Tela '{RotationScreen.Name}' offline — aguardando…";
+                return;
+            }
+
+            var loaded = _layoutService.Load(name);
+            if (loaded == null)
+            {
+                RotationStatus = $"Layout '{name}' não encontrado.";
+                return;
+            }
+
+            SelectedScreen = screen;
+            ApplyLayout(loaded);
+            SetSelectedLayoutSilent(name);
+            if (SendLayoutToScreenCommand.CanExecute(null))
+                SendLayoutToScreenCommand.Execute(null);
+
+            RotationStatus = $"Rodando — {name} ({_rotationIndex + 1}/{RotationLayouts.Count}) · troca a cada {RotationMinutes} min";
         }
 
         /// <summary>Tenta religar a captura de uma fonte de aplicativo pelo título da janela.</summary>
@@ -1444,6 +1608,7 @@ namespace VideoWall.ViewModels
         {
             _scheduleTimer.Stop();
             _thumbnailTimer.Stop();
+            _rotationTimer.Stop();
             _discovery.ViewersChanged -= OnRemoteViewersChanged;
             _discovery.Dispose();
             _controllerBeacon?.Dispose();

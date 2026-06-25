@@ -42,5 +42,8 @@ namespace VideoWall.ViewModels
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(IpAddress));
         }
+
+        // Exibido em ComboBox/listas (evita aparecer o nome do tipo).
+        public override string ToString() => Name;
     }
 }
