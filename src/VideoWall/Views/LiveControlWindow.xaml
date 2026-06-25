@@ -78,6 +78,8 @@
                             Tag="arrow" Click="OnToolClick" ToolTip="Seta"/>
                     <Button x:Name="ToolRect" Content="▭" Style="{StaticResource ToolButton}"
                             Tag="rect" Click="OnToolClick" ToolTip="Retângulo"/>
+                    <Button x:Name="ToolMarker" Content="🖍" Style="{StaticResource ToolButton}"
+                            Tag="marker" Click="OnToolClick" ToolTip="Marca-texto (realce)"/>
 
                     <Border Width="1" Background="#2A2D34" Margin="10,2"/>
 

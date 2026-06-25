@@ -38,16 +38,6 @@ namespace VideoWall.Viewer
         private readonly List<FrameworkElement?> _slots = new();
         private readonly List<string?> _slotUrls = new();
 
-        // Marcações (caneta/seta/retângulo) por célula + o desenho em andamento.
-        private readonly Dictionary<int, List<UIElement>> _annotations = new();
-        private Polyline? _annoPen;
-        private Polyline? _annoArrow;
-        private Rectangle? _annoRect;
-        private string _annoType = "pen";
-        private Brush _annoBrush = Brushes.Red;
-        private Point _annoStart;
-        private int _annoCell = -1;
-
         /// <summary>
         /// Largura lógica (CSS) fixa em que toda página é diagramada. Como independe do
         /// tamanho físico da célula, redimensionar a célula NÃO reflui a página (preserva
@@ -194,7 +184,12 @@ namespace VideoWall.Viewer
                 var nw = new WebView2 { Tag = src.Zoom };
                 // Reaplica o zoom canônico quando o navegador fica pronto e a cada
                 // redimensionamento (mudança de layout) — mantendo a largura lógica fixa.
-                nw.CoreWebView2InitializationCompleted += (_, _) => ApplyCanonicalZoom(nw);
+                nw.CoreWebView2InitializationCompleted += (_, _) =>
+                {
+                    ApplyCanonicalZoom(nw);
+                    // Injeta a biblioteca de marcações (camada SVG) em toda página.
+                    try { _ = nw.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(AnnoLibScript); } catch { }
+                };
                 nw.SizeChanged += (_, _) => ApplyCanonicalZoom(nw);
                 nw.Source = uri;
                 SetSlot(i, nw);
@@ -261,7 +256,6 @@ namespace VideoWall.Viewer
             {
                 if (old is WebView2 w) { try { w.Dispose(); } catch { } }
                 Surface.Children.Remove(old);
-                ClearAnnotations(i); // o conteúdo daquela célula mudou
             }
             _slots[i] = element;
             Surface.Children.Add(element);
@@ -277,7 +271,6 @@ namespace VideoWall.Viewer
             }
             _slots.RemoveAt(i);
             _slotUrls.RemoveAt(i);
-            ClearAllAnnotations(); // índices mudaram: evita marcações desalinhadas
         }
 
         /// <summary>
@@ -322,7 +315,6 @@ namespace VideoWall.Viewer
             Surface.Children.Clear();
             _slots.Clear();
             _slotUrls.Clear();
-            ClearAllAnnotations();
         }
 
         // ----------------------------------------------------------------------------
@@ -506,141 +498,73 @@ namespace VideoWall.Viewer
         }
 
         // ----------------------------------------------------------------------------
-        // Marcações desenhadas a partir do controlador (caneta/seta/retângulo)
+        // Marcações: injetadas DENTRO da página (camada SVG). Um Canvas WPF ficaria
+        // escondido atrás do WebView2 (airspace). Coordenadas normalizadas 0..1.
         // ----------------------------------------------------------------------------
 
-        private (double L, double T, double W, double H) CellRect(int index)
+        /// <summary>Biblioteca injetada em cada página: cria uma camada SVG fixa por cima
+        /// do conteúdo e desenha caneta, seta, retângulo e marca-texto.</summary>
+        private const string AnnoLibScript = @"
+(function(){
+  if(window.__cpeAnnoInit) return; window.__cpeAnnoInit=true;
+  var NS='http://www.w3.org/2000/svg';
+  function ensure(){ var s=document.getElementById('__cpeAnnoSvg');
+    if(!s){ s=document.createElementNS(NS,'svg'); s.id='__cpeAnnoSvg';
+      s.style.cssText='position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647';
+      (document.body||document.documentElement).appendChild(s); } return s; }
+  var cur=null,ty='pen',sx=0,sy=0;
+  function arrow(ax,ay,bx,by){ var dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy),p=ax+','+ay+' '+bx+','+by;
+    if(L>=1){ var ux=dx/L,uy=dy/L,h=18,w=10,kx=bx-ux*h,ky=by-uy*h,px=-uy,py=ux;
+      p+=' '+(kx+px*w)+','+(ky+py*w)+' '+bx+','+by+' '+(kx-px*w)+','+(ky-py*w); } return p; }
+  window.__cpeAnnoStart=function(t,color,nx,ny){ var s=ensure(); ty=t;
+    var x=nx*window.innerWidth, y=ny*window.innerHeight; sx=x; sy=y;
+    if(t==='rect'){ cur=document.createElementNS(NS,'rect'); cur.setAttribute('x',x); cur.setAttribute('y',y);
+      cur.setAttribute('fill','none'); cur.setAttribute('stroke',color); cur.setAttribute('stroke-width',4); }
+    else if(t==='arrow'){ cur=document.createElementNS(NS,'polyline'); cur.setAttribute('fill','none');
+      cur.setAttribute('stroke',color); cur.setAttribute('stroke-width',4); cur.setAttribute('points',x+','+y); }
+    else if(t==='marker'){ cur=document.createElementNS(NS,'polyline'); cur.setAttribute('fill','none');
+      cur.setAttribute('stroke',color); cur.setAttribute('stroke-width',18); cur.setAttribute('stroke-opacity','0.4');
+      cur.setAttribute('stroke-linecap','round'); cur.setAttribute('stroke-linejoin','round'); cur.setAttribute('points',x+','+y); }
+    else { cur=document.createElementNS(NS,'polyline'); cur.setAttribute('fill','none'); cur.setAttribute('stroke',color);
+      cur.setAttribute('stroke-width',4); cur.setAttribute('stroke-linecap','round'); cur.setAttribute('stroke-linejoin','round');
+      cur.setAttribute('points',x+','+y); }
+    s.appendChild(cur); };
+  window.__cpeAnnoPoint=function(nx,ny){ if(!cur)return; var x=nx*window.innerWidth, y=ny*window.innerHeight;
+    if(ty==='rect'){ var mx=Math.min(sx,x),my=Math.min(sy,y); cur.setAttribute('x',mx); cur.setAttribute('y',my);
+      cur.setAttribute('width',Math.abs(x-sx)); cur.setAttribute('height',Math.abs(y-sy)); }
+    else if(ty==='arrow'){ cur.setAttribute('points',arrow(sx,sy,x,y)); }
+    else { cur.setAttribute('points',cur.getAttribute('points')+' '+x+','+y); } };
+  window.__cpeAnnoEnd=function(nx,ny){ window.__cpeAnnoPoint(nx,ny); cur=null; };
+  window.__cpeAnnoClear=function(){ var s=document.getElementById('__cpeAnnoSvg'); if(s)s.innerHTML=''; cur=null; };
+})();";
+
+        private void StartAnnotation(RemoteInputEvent ev) => RunAnno(ev.TargetIndex,
+            $"window.__cpeAnnoStart&&window.__cpeAnnoStart({JsStr(ev.ShapeType ?? "pen")},{JsStr(SafeColor(ev.ColorHex))},{Inv(ev.X)},{Inv(ev.Y)})");
+
+        private void UpdateAnnotation(RemoteInputEvent ev) => RunAnno(ev.TargetIndex,
+            $"window.__cpeAnnoPoint&&window.__cpeAnnoPoint({Inv(ev.X)},{Inv(ev.Y)})");
+
+        private void EndAnnotation(RemoteInputEvent ev) => RunAnno(ev.TargetIndex,
+            $"window.__cpeAnnoEnd&&window.__cpeAnnoEnd({Inv(ev.X)},{Inv(ev.Y)})");
+
+        private void ClearAnnotations(int cell) =>
+            RunAnno(cell, "window.__cpeAnnoClear&&window.__cpeAnnoClear()");
+
+        private async void RunAnno(int cell, string js)
         {
-            if (index >= 0 && index < _slots.Count && _slots[index] is FrameworkElement fe)
-            {
-                double l = Canvas.GetLeft(fe);
-                double t = Canvas.GetTop(fe);
-                if (double.IsNaN(l)) l = 0;
-                if (double.IsNaN(t)) t = 0;
-                double w = fe.Width > 0 ? fe.Width : fe.ActualWidth;
-                double h = fe.Height > 0 ? fe.Height : fe.ActualHeight;
-                if (w > 0 && h > 0)
-                    return (l, t, w, h);
-            }
-            return (0, 0, ActualWidth, ActualHeight);
+            var web = (cell >= 0 && cell < _slots.Count) ? _slots[cell] as WebView2 : null;
+            if (web?.CoreWebView2 == null) return;
+            try { await web.ExecuteScriptAsync(js); } catch { /* página trocando: ignora */ }
         }
 
-        private Point ToScreen(int cell, double nx, double ny)
+        private static string Inv(double v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        private static string JsStr(string s) => "'" + (s ?? string.Empty).Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+
+        private static string SafeColor(string? hex)
         {
-            var r = CellRect(cell);
-            return new Point(r.L + nx * r.W, r.T + ny * r.H);
-        }
-
-        private void StartAnnotation(RemoteInputEvent ev)
-        {
-            _annoCell = ev.TargetIndex;
-            _annoType = ev.ShapeType ?? "pen";
-            _annoBrush = ToBrush(ev.ColorHex, Brushes.Red);
-            _annoStart = ToScreen(_annoCell, ev.X, ev.Y);
-
-            if (!_annotations.TryGetValue(_annoCell, out var list))
-                _annotations[_annoCell] = list = new List<UIElement>();
-
-            switch (_annoType)
-            {
-                case "rect":
-                    _annoRect = new Rectangle { Stroke = _annoBrush, StrokeThickness = 4 };
-                    Canvas.SetLeft(_annoRect, _annoStart.X);
-                    Canvas.SetTop(_annoRect, _annoStart.Y);
-                    AnnotationLayer.Children.Add(_annoRect);
-                    list.Add(_annoRect);
-                    break;
-                case "arrow":
-                    _annoArrow = NewStroke();
-                    AnnotationLayer.Children.Add(_annoArrow);
-                    list.Add(_annoArrow);
-                    break;
-                default: // pen
-                    _annoPen = NewStroke();
-                    _annoPen.Points.Add(_annoStart);
-                    AnnotationLayer.Children.Add(_annoPen);
-                    list.Add(_annoPen);
-                    break;
-            }
-            AnnotationLayer.Visibility = Visibility.Visible;
-        }
-
-        private Polyline NewStroke() => new()
-        {
-            Stroke = _annoBrush,
-            StrokeThickness = 4,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round,
-        };
-
-        private void UpdateAnnotation(RemoteInputEvent ev)
-        {
-            var p = ToScreen(_annoCell, ev.X, ev.Y);
-            switch (_annoType)
-            {
-                case "rect":
-                    if (_annoRect != null)
-                    {
-                        Canvas.SetLeft(_annoRect, Math.Min(_annoStart.X, p.X));
-                        Canvas.SetTop(_annoRect, Math.Min(_annoStart.Y, p.Y));
-                        _annoRect.Width = Math.Abs(p.X - _annoStart.X);
-                        _annoRect.Height = Math.Abs(p.Y - _annoStart.Y);
-                    }
-                    break;
-                case "arrow":
-                    if (_annoArrow != null)
-                        _annoArrow.Points = BuildArrow(_annoStart, p);
-                    break;
-                default:
-                    _annoPen?.Points.Add(p);
-                    break;
-            }
-        }
-
-        private void EndAnnotation(RemoteInputEvent ev)
-        {
-            UpdateAnnotation(ev);
-            _annoPen = null;
-            _annoArrow = null;
-            _annoRect = null;
-        }
-
-        private void ClearAnnotations(int cell)
-        {
-            if (_annotations.TryGetValue(cell, out var list))
-            {
-                foreach (var u in list)
-                    AnnotationLayer.Children.Remove(u);
-                list.Clear();
-            }
-        }
-
-        private void ClearAllAnnotations()
-        {
-            AnnotationLayer.Children.Clear();
-            _annotations.Clear();
-            _annoPen = null;
-            _annoArrow = null;
-            _annoRect = null;
-        }
-
-        private static PointCollection BuildArrow(Point a, Point b)
-        {
-            var pc = new PointCollection { a, b };
-            double dx = b.X - a.X, dy = b.Y - a.Y;
-            double len = Math.Sqrt(dx * dx + dy * dy);
-            if (len >= 1)
-            {
-                double ux = dx / len, uy = dy / len;
-                const double head = 20, wide = 11;
-                double bx = b.X - ux * head, by = b.Y - uy * head;
-                double px = -uy, py = ux; // perpendicular
-                pc.Add(new Point(bx + px * wide, by + py * wide));
-                pc.Add(b);
-                pc.Add(new Point(bx - px * wide, by - py * wide));
-            }
-            return pc;
+            var h = (hex ?? string.Empty).Trim();
+            return System.Text.RegularExpressions.Regex.IsMatch(h, "^#[0-9a-fA-F]{6}$") ? h : "#EF4444";
         }
 
         // ----------------------------------------------------------------------------

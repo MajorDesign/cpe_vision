@@ -316,6 +316,7 @@ namespace VideoWall.Views
             ToolPen.Background = _tool == "pen" ? active : idle;
             ToolArrow.Background = _tool == "arrow" ? active : idle;
             ToolRect.Background = _tool == "rect" ? active : idle;
+            ToolMarker.Background = _tool == "marker" ? active : idle;
         }
 
         private void OnColorClick(object sender, MouseButtonEventArgs e)
@@ -428,6 +429,14 @@ namespace VideoWall.Views
             {
                 _localArrow = NewLocalStroke(brush);
                 DrawOverlay.Children.Add(_localArrow);
+            }
+            else if (_tool == "marker")
+            {
+                _localPen = NewLocalStroke(brush);
+                _localPen.StrokeThickness = 18;
+                _localPen.Opacity = 0.4;
+                _localPen.Points.Add(p);
+                DrawOverlay.Children.Add(_localPen);
             }
             else
             {
