@@ -38,6 +38,11 @@ namespace VideoWall.Viewer
         private readonly List<FrameworkElement?> _slots = new();
         private readonly List<string?> _slotUrls = new();
 
+        // Janelas sobrepostas (PiP, ex.: lives) por índice de fonte. Ficam sempre no topo,
+        // fora do Surface, porque dois WebView2 na mesma janela não empilham (airspace).
+        private readonly Dictionary<int, OverlayWindow> _overlays = new();
+        private static readonly object OverlayPlaceholderTag = new();
+
         /// <summary>
         /// Largura lógica (CSS) fixa em que toda página é diagramada. Como independe do
         /// tamanho físico da célula, redimensionar a célula NÃO reflui a página (preserva
@@ -142,12 +147,22 @@ namespace VideoWall.Viewer
                 var src = sources[i];
                 EnsureSlotCapacity(i);
 
-                FrameworkElement element = ReconcileSlot(i, src);
+                // Miniatura sobreposta (PiP): vive numa janela própria sempre-no-topo.
+                // A vaga no Surface fica como um marcador transparente (só para manter os
+                // índices alinhados com o controlador, usados pelo controle ao vivo).
+                bool isOverlay = src.Kind == ScreenSource.Browser && src.Overlay;
+
+                FrameworkElement element = isOverlay ? ReconcilePlaceholder(i) : ReconcileSlot(i, src);
                 element.Width = Math.Max(1, src.Width * w);
                 element.Height = Math.Max(1, src.Height * h);
                 Canvas.SetLeft(element, src.X * w);
                 Canvas.SetTop(element, src.Y * h);
                 Panel.SetZIndex(element, src.ZIndex);
+
+                if (isOverlay)
+                    UpdateOverlay(i, src, w, h);
+                else
+                    CloseOverlay(i); // caso a vaga tenha deixado de ser overlay
             }
 
             // Remove fontes que não existem mais no layout novo.
@@ -286,8 +301,59 @@ namespace VideoWall.Viewer
                 if (old is WebView2 w) { try { w.Dispose(); } catch { } }
                 Surface.Children.Remove(old);
             }
+            CloseOverlay(i);
             _slots.RemoveAt(i);
             _slotUrls.RemoveAt(i);
+        }
+
+        /// <summary>
+        /// Marcador transparente para uma vaga de fonte sobreposta (a live aparece numa
+        /// janela própria, no topo). Mantém o índice da vaga alinhado com o controlador.
+        /// </summary>
+        private FrameworkElement ReconcilePlaceholder(int i)
+        {
+            if (_slots[i] is Border ph && ReferenceEquals(ph.Tag, OverlayPlaceholderTag))
+                return ph;
+
+            var nb = new Border { Background = null, IsHitTestVisible = false, Tag = OverlayPlaceholderTag };
+            SetSlot(i, nb);
+            _slotUrls[i] = null;
+            return nb;
+        }
+
+        /// <summary>Cria/reposiciona a janela sobreposta da vaga <paramref name="i"/>.</summary>
+        private void UpdateOverlay(int i, ScreenSource src, double w, double h)
+        {
+            if (!_overlays.TryGetValue(i, out var ov))
+            {
+                ov = new OverlayWindow(this);
+                _overlays[i] = ov;
+            }
+
+            ov.SetUrl(src.Url ?? string.Empty);
+
+            // Retângulo da célula convertido para pixels físicos da tela. O Surface fica
+            // na origem (0,0) da janela, então convertemos pela própria janela (sempre
+            // arranjada/visível, mesmo quando o Surface ainda está oculto).
+            try
+            {
+                var p0 = PointToScreen(new Point(src.X * w, src.Y * h));
+                var p1 = PointToScreen(new Point(src.X * w + src.Width * w, src.Y * h + src.Height * h));
+                ov.PlaceOnScreen(
+                    (int)Math.Round(p0.X), (int)Math.Round(p0.Y),
+                    (int)Math.Round(p1.X - p0.X), (int)Math.Round(p1.Y - p0.Y));
+            }
+            catch { /* janela ainda não pronta: a próxima projeção reposiciona */ }
+        }
+
+        /// <summary>Fecha a janela sobreposta da vaga <paramref name="i"/>, se existir.</summary>
+        private void CloseOverlay(int i)
+        {
+            if (_overlays.TryGetValue(i, out var ov))
+            {
+                ov.CloseOverlay();
+                _overlays.Remove(i);
+            }
         }
 
         /// <summary>
@@ -325,6 +391,10 @@ namespace VideoWall.Viewer
 
         private void ClearSurface()
         {
+            foreach (var ov in _overlays.Values.ToList())
+                ov.CloseOverlay();
+            _overlays.Clear();
+
             foreach (var web in Surface.Children.OfType<WebView2>().ToList())
             {
                 try { web.Dispose(); } catch { }

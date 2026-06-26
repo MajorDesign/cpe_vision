@@ -20,6 +20,13 @@ namespace VideoWall.Network
         public string? Url { get; set; }
         public double Zoom { get; set; } = 1.0;
 
+        /// <summary>
+        /// Quando verdadeiro, o navegador é uma miniatura sobreposta (PiP, ex.: live
+        /// do YouTube). O terminal o renderiza numa janela própria sempre-no-topo, pois
+        /// dois WebView2 na mesma janela não respeitam a ordem de empilhamento (airspace).
+        /// </summary>
+        public bool Overlay { get; set; }
+
         // Cor
         public string? ColorHex { get; set; }
 

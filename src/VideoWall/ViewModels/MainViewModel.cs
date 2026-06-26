@@ -889,6 +889,7 @@ namespace VideoWall.ViewModels
                         source.Kind = ScreenSource.Browser;
                         source.Url = b.Url;
                         source.Zoom = b.ZoomFactor;
+                        source.Overlay = b.IsOverlay;
                         break;
                     case ColorElement c:
                         source.Kind = ScreenSource.Color;
@@ -1608,6 +1609,7 @@ namespace VideoWall.ViewModels
                 Width = 480,
                 Height = 270,
                 ZoomFactor = 1.0,
+                IsOverlay = true,
             };
             element.Name = $"Live {_elementCounter}";
             element.ZIndex = NextZIndex();

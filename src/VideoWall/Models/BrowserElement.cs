@@ -15,6 +15,12 @@ namespace VideoWall.Models
 
         public override string Kind => "Navegador";
 
+        /// <summary>
+        /// Miniatura sobreposta (PiP, ex.: live do YouTube): o terminal a exibe numa
+        /// janela própria sempre-no-topo, garantindo que fique por cima dos navegadores.
+        /// </summary>
+        public bool IsOverlay { get; set; }
+
         /// <summary>Miniatura do conteúdo da página (capturada ao editar a URL).</summary>
         public ImageSource? PreviewImage
         {
@@ -40,7 +46,7 @@ namespace VideoWall.Models
 
         public override WallElement Clone()
         {
-            var copy = new BrowserElement { Url = Url, ZoomFactor = ZoomFactor, PreviewImage = PreviewImage };
+            var copy = new BrowserElement { Url = Url, ZoomFactor = ZoomFactor, PreviewImage = PreviewImage, IsOverlay = IsOverlay };
             CopyBaseTo(copy);
             return copy;
         }
