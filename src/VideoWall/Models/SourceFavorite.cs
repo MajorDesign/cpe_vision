@@ -15,5 +15,11 @@ namespace VideoWall.Models
 
         /// <summary>Conteúdo: URL (Web), URL RTSP (Câmera), caminho (Imagem) ou título da janela (Aplicativo).</summary>
         public string Payload { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Quando verdadeiro, a fonte Web é uma miniatura sobreposta (live/PiP): ao
+        /// adicionar à parede, vira um overlay (não um navegador de célula inteira).
+        /// </summary>
+        public bool Overlay { get; set; }
     }
 }

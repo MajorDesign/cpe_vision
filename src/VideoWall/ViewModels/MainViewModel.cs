@@ -80,7 +80,7 @@ namespace VideoWall.ViewModels
         public ObservableCollection<WallElement> Elements { get; } = new();
         public ObservableCollection<string> Layouts { get; } = new();
         public ObservableCollection<SourceFavorite> Favorites { get; } = new();
-        public ObservableCollection<string> FavoriteCategories { get; } = new() { "Web", "Câmera", "Imagem" };
+        public ObservableCollection<string> FavoriteCategories { get; } = new() { "Web", "Imagem" };
         public ObservableCollection<ScheduleEntry> Schedules { get; } = new();
 
         /// <summary>Sequência de layouts da rotação automática (troca a cada X min).</summary>
@@ -1310,6 +1310,9 @@ namespace VideoWall.ViewModels
                 Category = category,
                 Name = SelectedElement!.Name,
                 Payload = payload,
+                // Preserva o tipo "live/PiP" para re-adicionar como overlay (e não como
+                // navegador de célula inteira, que sobrecarrega o terminal).
+                Overlay = SelectedElement is BrowserElement br && br.IsOverlay,
             });
             PersistFavorites();
             StatusMessage = $"Fonte salva na biblioteca: {SelectedElement.Name}";
@@ -1321,9 +1324,24 @@ namespace VideoWall.ViewModels
                 return;
 
             var fav = SelectedFavorite;
+
+            // Live/PiP: re-adiciona como overlay (miniatura sempre-no-topo), igual ao
+            // botão "Live YouTube". Evita virar um navegador de célula inteira (pesado).
+            // Detecta também pela URL do player (favoritos salvos antes deste campo).
+            bool isLive = fav.Category == "Web" &&
+                (fav.Overlay ||
+                 (fav.Payload?.IndexOf("cpe.live", StringComparison.OrdinalIgnoreCase) >= 0));
+            if (isLive)
+            {
+                var live = AddLivePip(fav.Payload, null);
+                if (!string.IsNullOrWhiteSpace(fav.Name))
+                    live.Name = fav.Name;
+                StatusMessage = $"Adicionado da biblioteca: {fav.Name}";
+                return;
+            }
+
             WallElement element = fav.Category switch
             {
-                "Câmera" => new CameraElement { Width = 960, Height = 540, StreamUrl = fav.Payload },
                 "Imagem" => new ImageElement { Width = 480, Height = 270, ImagePath = fav.Payload },
                 "Aplicativo" => new WindowCaptureElement { Width = 960, Height = 540, WindowTitle = fav.Payload },
                 _ => new BrowserElement { Width = 960, Height = 540, Url = fav.Payload },
