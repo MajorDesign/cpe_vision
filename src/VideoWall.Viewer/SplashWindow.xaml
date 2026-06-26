@@ -68,8 +68,39 @@
                            FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
 
-            <TextBlock Grid.Row="3" Text="Desenvolvido por Jonathan Lopes" Foreground="#5A5B62"
-                       FontSize="11" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+            <!-- Assinatura com "luz" amarela passando pelas letras (shimmer em loop) -->
+            <TextBlock Grid.Row="3" Text="Desenvolvido por Jonathan Lopes"
+                       FontSize="11" HorizontalAlignment="Center" Margin="0,14,0,0">
+                <TextBlock.Foreground>
+                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                        <LinearGradientBrush.GradientStops>
+                            <GradientStop Color="#5A5B62" Offset="0.0"/>
+                            <GradientStop Color="#5A5B62" Offset="0.42"/>
+                            <GradientStop Color="#FFF3C4" Offset="0.5"/>
+                            <GradientStop Color="#F2B705" Offset="0.5"/>
+                            <GradientStop Color="#5A5B62" Offset="0.58"/>
+                            <GradientStop Color="#5A5B62" Offset="1.0"/>
+                        </LinearGradientBrush.GradientStops>
+                        <LinearGradientBrush.RelativeTransform>
+                            <TranslateTransform x:Name="ShineTransform" X="-0.7"/>
+                        </LinearGradientBrush.RelativeTransform>
+                    </LinearGradientBrush>
+                </TextBlock.Foreground>
+                <TextBlock.Triggers>
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever">
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="ShineTransform"
+                                        Storyboard.TargetProperty="X">
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0" Value="-0.7"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1.7" Value="0.7"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:3.2" Value="0.7"/>
+                                </DoubleAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </TextBlock.Triggers>
+            </TextBlock>
         </Grid>
     </Border>
 </Window>
