@@ -1590,6 +1590,38 @@ namespace VideoWall.ViewModels
 
         private int NextZIndex() => Elements.Count == 0 ? 0 : Elements.Max(e => e.ZIndex) + 1;
 
+        /// <summary>
+        /// Adiciona uma live do YouTube como miniatura (PiP) no canto superior direito,
+        /// sempre por cima das demais fontes. O endereço já deve vir na forma "embed".
+        /// </summary>
+        public BrowserElement AddLivePip(string embedUrl, System.Windows.Media.ImageSource? preview)
+        {
+            _elementCounter++;
+            double ww = WallWidth > 0 ? WallWidth : RemoteScreenWidth;
+            double wh = WallHeight > 0 ? WallHeight : RemoteScreenHeight;
+            const double margin = 24;
+
+            var element = new BrowserElement
+            {
+                Url = embedUrl,
+                PreviewImage = preview,
+                Width = 480,
+                Height = 270,
+                ZoomFactor = 1.0,
+            };
+            element.Name = $"Live {_elementCounter}";
+            element.ZIndex = NextZIndex();
+            // Canto superior direito da parede virtual, com uma margem.
+            element.X = -WallOffsetX + ww - element.Width - margin;
+            element.Y = -WallOffsetY + margin;
+
+            Elements.Add(element);
+            SelectedElement = element;
+            StatusMessage = $"Live adicionada: {element.Name}";
+            CommandManager.InvalidateRequerySuggested();
+            return element;
+        }
+
         private void RemoveSelected()
         {
             if (SelectedElement == null)

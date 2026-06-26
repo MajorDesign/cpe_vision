@@ -98,7 +98,9 @@ namespace VideoWall.Views
                 return;
 
             if (!string.IsNullOrWhiteSpace(dialog.ResultUrl))
-                browser.Url = dialog.ResultUrl.Trim();
+                // Links de vídeo/live do YouTube viram "embed" (toca direto, sem o site).
+                // Demais endereços passam inalterados.
+                browser.Url = YouTubeLive.ToEmbedUrl(dialog.ResultUrl.Trim());
 
             if (dialog.ResultPreview != null)
                 browser.PreviewImage = dialog.ResultPreview;
@@ -115,6 +117,25 @@ namespace VideoWall.Views
             _viewModel.AddTextCommand.Execute(null);
             if (_viewModel.SelectedElement is Models.TextElement text)
                 EditText(text);
+        }
+
+        /// <summary>
+        /// Adiciona uma live do YouTube (não listada) como miniatura sobreposta.
+        /// Abre o editor para colar/ver o link, converte para a forma "embed" e
+        /// projeta na tela selecionada.
+        /// </summary>
+        private void AddLive_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new UrlEditWindow("https://www.youtube.com/live/") { Owner = this };
+            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.ResultUrl))
+                return;
+
+            string embed = YouTubeLive.ToEmbedUrl(dialog.ResultUrl.Trim());
+            _viewModel.AddLivePip(embed, dialog.ResultPreview);
+
+            // Já projeta na tela selecionada (sem recarregar as outras fontes).
+            if (_viewModel.SendLayoutToScreenCommand.CanExecute(null))
+                _viewModel.SendLayoutToScreenCommand.Execute(null);
         }
 
         /// <summary>Edita o conteúdo/tamanho/cor de um Texto (duplo-clique na pré-visualização).</summary>

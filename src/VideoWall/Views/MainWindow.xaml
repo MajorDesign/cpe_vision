@@ -193,8 +193,13 @@
                             Command="{Binding AddBrowserCommand}"/>
                     <Button Content="🖥  Aplicativo (espelhar janela)" Style="{StaticResource SubtleButton}"
                             Command="{Binding AddWindowCaptureCommand}"/>
+                    <Button Content="📺  Live YouTube (miniatura)" Style="{StaticResource SubtleButton}"
+                            Click="AddLive_Click"
+                            ToolTip="Cole o link de uma live não listada do YouTube. Aparece como miniatura sobreposta, por cima do navegador."/>
                     <Button Content="📷  Câmera (RTSP)" Style="{StaticResource SubtleButton}"
-                            Command="{Binding AddCameraCommand}"/>
+                            Command="{Binding AddCameraCommand}"
+                            IsEnabled="False"
+                            ToolTip="Em validação — disponível em outro momento. Hoje use o Live YouTube para câmeras."/>
 
                     <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
 
