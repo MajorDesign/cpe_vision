@@ -17,7 +17,7 @@ namespace VideoWall.Viewer
 
         // Tempo mínimo que o pré-load fica visível, para dar tempo de ver a animação
         // (sem isso, quando não há atualização, ele fecha rápido demais).
-        private const int MinSplashMs = 3500;
+        private const int MinSplashMs = 5000;
         private readonly Stopwatch _shownSince = Stopwatch.StartNew();
 
         public SplashWindow()
