@@ -25,17 +25,40 @@ namespace VideoWall.Network
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         /// <summary>
-        /// Script injetado nos navegadores que exibem lives: quando a página é do
-        /// YouTube (fallback para a página normal, sem embed), força o vídeo a tocar
-        /// (mudo, permitido sem gesto) e remove popups (YouTube Premium, consentimento)
-        /// que sobrepõem o vídeo e dão a sensação de "congelado".
+        /// Script injetado nos navegadores que exibem lives. Quando a página é do
+        /// YouTube (fallback para a página normal, sem embed), ele:
+        ///  - força o vídeo a tocar (mudo, permitido sem gesto);
+        ///  - remove popups (YouTube Premium, consentimento) que dão sensação de travado;
+        ///  - injeta CSS que ESCONDE o cabeçalho/barra do site e expande o player para
+        ///    ocupar todo o quadro, com o vídeo em "contain" (sem cortar a imagem) —
+        ///    o resultado é o vídeo em tela cheia reduzido dentro da miniatura.
         /// Injetar com AddScriptToExecuteOnDocumentCreatedAsync.
         /// </summary>
         public const string KeepPlayingScript =
 @"(function(){
   if (location.hostname.indexOf('youtube.com') < 0) return;
+  var STYLE_ID = '__cpeLiveStyle';
+  function injectStyle(){
+    if (document.getElementById(STYLE_ID)) return;
+    var s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent =
+      'html,body{margin:0!important;padding:0!important;overflow:hidden!important;background:#000!important}' +
+      'ytd-masthead,#masthead-container,#masthead,tp-yt-app-header,#chips-wrapper,' +
+      'ytd-mealbar-promo-renderer,ytmusic-mealbar-promo-renderer,#secondary,#below,#comments,' +
+      'ytd-watch-metadata,ytd-watch-next-secondary-results-renderer{display:none!important}' +
+      '#movie_player,.html5-video-player,#player,#player-container,#player-container-inner,' +
+      '#player-container-outer,#full-bleed-container,ytd-watch-flexy #player{' +
+      'position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;' +
+      'max-width:none!important;max-height:none!important;margin:0!important;z-index:2147483647!important}' +
+      '.html5-video-container{width:100%!important;height:100%!important}' +
+      'video.html5-main-video,.html5-video-container video{width:100%!important;height:100%!important;' +
+      'top:0!important;left:0!important;object-fit:contain!important}';
+    (document.head || document.documentElement).appendChild(s);
+  }
   function go(){
     try {
+      injectStyle();
       var v = document.querySelector('video');
       if (v) { v.muted = true; if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); } }
       ['ytd-mealbar-promo-renderer','ytmusic-mealbar-promo-renderer','ytd-popup-container tp-yt-paper-dialog']
@@ -46,9 +69,13 @@ namespace VideoWall.Network
           try { b.click(); } catch(_){}
         }
       });
+      // Faz o player recalcular o tamanho do vídeo para o novo tamanho (janela toda).
+      window.dispatchEvent(new Event('resize'));
     } catch(e){}
   }
-  setInterval(go, 1200);
+  injectStyle();
+  document.addEventListener('DOMContentLoaded', injectStyle);
+  setInterval(go, 1000);
 })();";
 
         /// <summary>Indica se o endereço aparenta ser uma live/vídeo do YouTube.</summary>
