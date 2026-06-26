@@ -15,6 +15,11 @@ namespace VideoWall.Viewer
     {
         private const string AssetName = "VideoWall.Viewer.exe";
 
+        // Tempo mínimo que o pré-load fica visível, para dar tempo de ver a animação
+        // (sem isso, quando não há atualização, ele fecha rápido demais).
+        private const int MinSplashMs = 3500;
+        private readonly Stopwatch _shownSince = Stopwatch.StartNew();
+
         public SplashWindow()
         {
             InitializeComponent();
@@ -45,6 +50,11 @@ namespace VideoWall.Viewer
             {
                 // Sem internet / falha na verificação: segue abrindo o terminal.
             }
+
+            // Garante o tempo mínimo de exibição do pré-load.
+            int elapsed = (int)_shownSince.ElapsedMilliseconds;
+            if (elapsed < MinSplashMs)
+                await System.Threading.Tasks.Task.Delay(MinSplashMs - elapsed);
 
             OpenMainAndClose();
         }
