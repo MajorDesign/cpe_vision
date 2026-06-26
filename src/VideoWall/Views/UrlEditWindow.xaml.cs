@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
 namespace VideoWall.Views
@@ -21,6 +22,8 @@ namespace VideoWall.Views
 
         /// <summary>Miniatura capturada da página (pode ser nula se não foi possível capturar).</summary>
         public ImageSource? ResultPreview { get; private set; }
+
+        private DispatcherTimer? _fullscreenTimer;
 
         public UrlEditWindow(string currentUrl)
         {
@@ -51,6 +54,12 @@ namespace VideoWall.Views
                 // Mantém a live tocando e remove popups quando cai na página do YouTube.
                 try { _ = Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
                     VideoWall.Network.YouTubeLive.KeepPlayingScript); } catch { }
+
+                // Entra em tela cheia sozinho nas páginas do YouTube (mesmo resultado do
+                // terminal): o vídeo preenche o quadro, sem cabeçalho.
+                _fullscreenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                _fullscreenTimer.Tick += (_, _) => EnsureFullscreen();
+                _fullscreenTimer.Start();
 
                 // Mantém a barra de endereço acompanhando a navegação real (buscas,
                 // cliques em links) para que o que é salvo seja a página exibida.
@@ -179,8 +188,34 @@ namespace VideoWall.Views
             }
         }
 
+        /// <summary>
+        /// Se a página atual for do YouTube e ainda não estiver em tela cheia, envia a
+        /// tecla "F" (atalho de tela cheia do player) via CDP. Repetir é seguro.
+        /// </summary>
+        private async void EnsureFullscreen()
+        {
+            var core = Web.CoreWebView2;
+            if (core == null) return;
+
+            try
+            {
+                var src = core.Source ?? string.Empty;
+                if (src.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) < 0)
+                    return;
+                if (core.ContainsFullScreenElement)
+                    return;
+
+                const string down = "{\"type\":\"keyDown\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
+                const string up = "{\"type\":\"keyUp\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
+                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", down);
+                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", up);
+            }
+            catch { /* tenta de novo no próximo tick */ }
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            try { _fullscreenTimer?.Stop(); } catch { }
             // Libera o processo do WebView2 para não deixar o controlador instável.
             try { Web.Dispose(); }
             catch { /* já liberado */ }

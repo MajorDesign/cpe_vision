@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using VideoWall.Network;
@@ -22,6 +23,7 @@ namespace VideoWall.Viewer
     internal sealed class OverlayWindow : Window
     {
         private readonly WebView2 _web;
+        private readonly DispatcherTimer _fullscreenTimer;
         private string? _url;
 
         public OverlayWindow(Window owner)
@@ -53,6 +55,39 @@ namespace VideoWall.Viewer
                 catch { }
             };
             Content = _web;
+
+            // Quando a live cai na página do YouTube (embed bloqueado), entra em tela
+            // cheia sozinha (tecla F do player) — o vídeo preenche o quadro, sem cabeçalho.
+            // Entrada via CDP conta como gesto do usuário, permitindo o fullscreen.
+            _fullscreenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _fullscreenTimer.Tick += (_, _) => EnsureFullscreen();
+            _fullscreenTimer.Start();
+        }
+
+        /// <summary>
+        /// Se a página atual for do YouTube e ainda não estiver em tela cheia, envia a
+        /// tecla "F" (atalho de tela cheia do player) via CDP. Repetir é seguro: quando
+        /// já está em tela cheia, não faz nada.
+        /// </summary>
+        private async void EnsureFullscreen()
+        {
+            var core = _web.CoreWebView2;
+            if (core == null) return;
+
+            try
+            {
+                var src = core.Source ?? string.Empty;
+                if (src.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) < 0)
+                    return;
+                if (core.ContainsFullScreenElement)
+                    return;
+
+                const string down = "{\"type\":\"keyDown\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
+                const string up = "{\"type\":\"keyUp\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
+                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", down);
+                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", up);
+            }
+            catch { /* tenta de novo no próximo tick */ }
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -91,6 +126,7 @@ namespace VideoWall.Viewer
         /// <summary>Libera o WebView2 e fecha a janela.</summary>
         public void CloseOverlay()
         {
+            try { _fullscreenTimer.Stop(); } catch { }
             try { _web.Dispose(); } catch { }
             try { Close(); } catch { }
         }
