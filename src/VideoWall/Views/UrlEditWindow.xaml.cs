@@ -41,6 +41,13 @@ namespace VideoWall.Views
                 var env = await CoreWebView2Environment.CreateAsync(null, UserDataFolder(), null);
                 await Web.EnsureCoreWebView2Async(env);
 
+                // Permite que endereços de live do YouTube (player.html via host virtual)
+                // sejam exibidos na pré-visualização — sem isso, embed direto dá Erro 153.
+                Web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    VideoWall.Network.YouTubeLive.VirtualHost,
+                    VideoWall.Network.YouTubeLive.EnsurePlayerFolder(),
+                    CoreWebView2HostResourceAccessKind.Allow);
+
                 // Mantém a barra de endereço acompanhando a navegação real (buscas,
                 // cliques em links) para que o que é salvo seja a página exibida.
                 Web.CoreWebView2.SourceChanged += (_, _) =>

@@ -1,0 +1,109 @@
+using System;
+using System.IO;
+using System.Text.RegularExpressions;
+
+namespace VideoWall.Network
+{
+    /// <summary>
+    /// Suporte a lives do YouTube (não listadas) exibidas como navegador na parede.
+    ///
+    /// Navegar DIRETO para <c>youtube.com/embed/ID</c> dá "Erro 153" — o player
+    /// exige estar dentro de um &lt;iframe&gt; numa página com origem/referrer válidos.
+    /// Por isso geramos uma página local (<c>player.html</c>) servida por um host
+    /// virtual do WebView2 (<see cref="VirtualHost"/>) que carrega a live num iframe.
+    /// Tanto o controlador (pré-visualização) quanto o terminal mapeiam esse host
+    /// para a mesma pasta, então o endereço gerado funciona nos dois.
+    /// </summary>
+    public static class YouTubeLive
+    {
+        /// <summary>Host virtual que serve o <c>player.html</c> (origem da página).</summary>
+        public const string VirtualHost = "cpe.live";
+
+        // ID de vídeo do YouTube: 11 caracteres (letras, números, "-" e "_").
+        private static readonly Regex IdPattern = new(
+            @"(?:youtu\.be/|youtube\.com/(?:live/|embed/|shorts/|watch\?(?:[^&]*&)*v=))([A-Za-z0-9_-]{11})",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Indica se o endereço aparenta ser uma live/vídeo do YouTube.</summary>
+        public static bool IsYouTube(string? url) =>
+            !string.IsNullOrWhiteSpace(url) && TryGetVideoId(url, out _);
+
+        /// <summary>
+        /// Converte um link de live/vídeo do YouTube no endereço do player local
+        /// (iframe hospedado), que toca direto sem a interface do site. Demais
+        /// endereços — e endereços já apontando para o player — passam inalterados.
+        /// </summary>
+        public static string ToPlayerUrl(string url)
+        {
+            if (!TryGetVideoId(url, out var id))
+                return url;
+
+            return $"https://{VirtualHost}/player.html?v={id}";
+        }
+
+        /// <summary>
+        /// Garante que a pasta com o <c>player.html</c> existe (gravada em LocalAppData,
+        /// para funcionar mesmo com o app instalado em Arquivos de Programas) e devolve
+        /// o caminho dela. Mapeie esse caminho para <see cref="VirtualHost"/> no WebView2.
+        /// </summary>
+        public static string EnsurePlayerFolder()
+        {
+            var folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CPE Tecnologia", "VideoWall", "player");
+            Directory.CreateDirectory(folder);
+
+            var file = Path.Combine(folder, "player.html");
+            // Reescreve se faltar ou se o conteúdo mudou (atualizações do player).
+            if (!File.Exists(file) || File.ReadAllText(file) != PlayerHtml)
+                File.WriteAllText(file, PlayerHtml);
+
+            return folder;
+        }
+
+        private static bool TryGetVideoId(string url, out string id)
+        {
+            id = string.Empty;
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+
+            var match = IdPattern.Match(url);
+            if (!match.Success)
+                return false;
+
+            id = match.Groups[1].Value;
+            return true;
+        }
+
+        // Página hospedeira: lê ?v=ID e monta o iframe da live. Como a página tem
+        // origem própria (host virtual), o player recebe o referrer e não dá Erro 153.
+        // autoplay exige mute=1 nos navegadores modernos.
+        private const string PlayerHtml =
+@"<!doctype html>
+<html lang=""pt-br"">
+<head>
+<meta charset=""utf-8"">
+<meta name=""viewport"" content=""width=device-width, initial-scale=1"">
+<style>
+  html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
+  #frame{position:fixed;inset:0;width:100%;height:100%;border:0}
+</style>
+</head>
+<body>
+<script>
+  var params = new URLSearchParams(location.search);
+  var id = (params.get('v') || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (id) {
+    var f = document.createElement('iframe');
+    f.id = 'frame';
+    f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    f.setAttribute('allowfullscreen', '');
+    f.src = 'https://www.youtube.com/embed/' + id +
+            '?autoplay=1&mute=1&playsinline=1&rel=0';
+    document.body.appendChild(f);
+  }
+</script>
+</body>
+</html>";
+    }
+}

@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using VideoWall.Models;
+using VideoWall.Network;
 using VideoWall.Services;
 using VideoWall.ViewModels;
 
@@ -98,9 +99,9 @@ namespace VideoWall.Views
                 return;
 
             if (!string.IsNullOrWhiteSpace(dialog.ResultUrl))
-                // Links de vídeo/live do YouTube viram "embed" (toca direto, sem o site).
-                // Demais endereços passam inalterados.
-                browser.Url = YouTubeLive.ToEmbedUrl(dialog.ResultUrl.Trim());
+                // Links de vídeo/live do YouTube viram o player local (toca direto, sem
+                // o site). Demais endereços passam inalterados.
+                browser.Url = YouTubeLive.ToPlayerUrl(dialog.ResultUrl.Trim());
 
             if (dialog.ResultPreview != null)
                 browser.PreviewImage = dialog.ResultPreview;
@@ -130,7 +131,7 @@ namespace VideoWall.Views
             if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.ResultUrl))
                 return;
 
-            string embed = YouTubeLive.ToEmbedUrl(dialog.ResultUrl.Trim());
+            string embed = YouTubeLive.ToPlayerUrl(dialog.ResultUrl.Trim());
             _viewModel.AddLivePip(embed, dialog.ResultPreview);
 
             // Já projeta na tela selecionada (sem recarregar as outras fontes).

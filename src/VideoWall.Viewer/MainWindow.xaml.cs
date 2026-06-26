@@ -189,6 +189,15 @@ namespace VideoWall.Viewer
                     ApplyCanonicalZoom(nw);
                     // Injeta a biblioteca de marcações (camada SVG) em toda página.
                     try { _ = nw.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(AnnoLibScript); } catch { }
+                    // Serve o player.html das lives do YouTube (host virtual) — sem isso,
+                    // embutir a live direto dá Erro 153.
+                    try
+                    {
+                        nw.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                            YouTubeLive.VirtualHost, YouTubeLive.EnsurePlayerFolder(),
+                            CoreWebView2HostResourceAccessKind.Allow);
+                    }
+                    catch { }
                 };
                 nw.SizeChanged += (_, _) => ApplyCanonicalZoom(nw);
                 nw.Source = uri;
