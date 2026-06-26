@@ -48,6 +48,9 @@ namespace VideoWall.Viewer
                         CoreWebView2HostResourceAccessKind.Allow);
                 }
                 catch { }
+                // Mantém a live tocando e remove popups quando cai na página do YouTube.
+                try { _ = _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(YouTubeLive.KeepPlayingScript); }
+                catch { }
             };
             Content = _web;
         }

@@ -24,6 +24,33 @@ namespace VideoWall.Network
             @"(?:youtu\.be/|youtube\.com/(?:live/|embed/|shorts/|watch\?(?:[^&]*&)*v=))([A-Za-z0-9_-]{11})",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        /// <summary>
+        /// Script injetado nos navegadores que exibem lives: quando a página é do
+        /// YouTube (fallback para a página normal, sem embed), força o vídeo a tocar
+        /// (mudo, permitido sem gesto) e remove popups (YouTube Premium, consentimento)
+        /// que sobrepõem o vídeo e dão a sensação de "congelado".
+        /// Injetar com AddScriptToExecuteOnDocumentCreatedAsync.
+        /// </summary>
+        public const string KeepPlayingScript =
+@"(function(){
+  if (location.hostname.indexOf('youtube.com') < 0) return;
+  function go(){
+    try {
+      var v = document.querySelector('video');
+      if (v) { v.muted = true; if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); } }
+      ['ytd-mealbar-promo-renderer','ytmusic-mealbar-promo-renderer','ytd-popup-container tp-yt-paper-dialog']
+        .forEach(function(s){ document.querySelectorAll(s).forEach(function(e){ try{ e.remove(); }catch(_){} }); });
+      document.querySelectorAll('button, tp-yt-paper-button, yt-button-shape button').forEach(function(b){
+        var t = (b.textContent || '').trim().toLowerCase();
+        if (t === 'agora não' || t === 'agora nao' || t === 'no thanks' || t === 'dispensar' || t === 'no, thanks') {
+          try { b.click(); } catch(_){}
+        }
+      });
+    } catch(e){}
+  }
+  setInterval(go, 1200);
+})();";
+
         /// <summary>Indica se o endereço aparenta ser uma live/vídeo do YouTube.</summary>
         public static bool IsYouTube(string? url) =>
             !string.IsNullOrWhiteSpace(url) && TryGetVideoId(url, out _);

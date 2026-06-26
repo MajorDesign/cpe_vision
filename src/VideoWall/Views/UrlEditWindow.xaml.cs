@@ -48,6 +48,10 @@ namespace VideoWall.Views
                     VideoWall.Network.YouTubeLive.EnsurePlayerFolder(),
                     CoreWebView2HostResourceAccessKind.Allow);
 
+                // Mantém a live tocando e remove popups quando cai na página do YouTube.
+                try { _ = Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                    VideoWall.Network.YouTubeLive.KeepPlayingScript); } catch { }
+
                 // Mantém a barra de endereço acompanhando a navegação real (buscas,
                 // cliques em links) para que o que é salvo seja a página exibida.
                 Web.CoreWebView2.SourceChanged += (_, _) =>
