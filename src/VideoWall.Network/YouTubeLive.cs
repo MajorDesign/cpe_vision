@@ -75,9 +75,10 @@ namespace VideoWall.Network
             return true;
         }
 
-        // Página hospedeira: lê ?v=ID e monta o iframe da live. Como a página tem
-        // origem própria (host virtual), o player recebe o referrer e não dá Erro 153.
-        // autoplay exige mute=1 nos navegadores modernos.
+        // Página hospedeira: lê ?v=ID e toca a live. Como a página tem origem própria
+        // (host virtual), o player recebe o referrer e não dá Erro 153. autoplay exige
+        // mute=1. Se a live tiver INCORPORAÇÃO DESATIVADA (onError do player), cai
+        // automaticamente para a página normal do YouTube, que toca mesmo assim.
         private const string PlayerHtml =
 @"<!doctype html>
 <html lang=""pt-br"">
@@ -86,21 +87,41 @@ namespace VideoWall.Network
 <meta name=""viewport"" content=""width=device-width, initial-scale=1"">
 <style>
   html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
-  #frame{position:fixed;inset:0;width:100%;height:100%;border:0}
+  #player{position:fixed;inset:0;width:100%;height:100%;border:0}
 </style>
 </head>
 <body>
+<div id=""player""></div>
 <script>
   var params = new URLSearchParams(location.search);
   var id = (params.get('v') || '').replace(/[^A-Za-z0-9_-]/g, '');
+  var watchUrl = 'https://www.youtube.com/watch?v=' + id;
+  var fellBack = false;
+  function fallback() {
+    if (!fellBack && id) { fellBack = true; location.replace(watchUrl); }
+  }
   if (id) {
-    var f = document.createElement('iframe');
-    f.id = 'frame';
-    f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
-    f.setAttribute('allowfullscreen', '');
-    f.src = 'https://www.youtube.com/embed/' + id +
-            '?autoplay=1&mute=1&playsinline=1&rel=0';
-    document.body.appendChild(f);
+    // Carrega a API do player do YouTube.
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+
+    // Se a incorporação estiver bloqueada (onError) ou a API não carregar (timeout),
+    // cai para a página normal do YouTube.
+    var guard = setTimeout(fallback, 8000);
+    window.onYouTubeIframeAPIReady = function () {
+      try {
+        new YT.Player('player', {
+          videoId: id,
+          width: '100%', height: '100%',
+          playerVars: { autoplay: 1, mute: 1, playsinline: 1, rel: 0 },
+          events: {
+            onReady: function (e) { clearTimeout(guard); try { e.target.playVideo(); } catch (_) {} },
+            onError: function () { clearTimeout(guard); fallback(); }
+          }
+        });
+      } catch (_) { clearTimeout(guard); fallback(); }
+    };
   }
 </script>
 </body>
