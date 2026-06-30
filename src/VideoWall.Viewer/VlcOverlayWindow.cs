@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Interop;
 using LibVLCSharp.Shared;
 using LibVLCSharp.WPF;
+using VideoWall.Network;
 
 namespace VideoWall.Viewer
 {
@@ -22,6 +23,8 @@ namespace VideoWall.Viewer
         private Media? _media;
         private string? _url;
         private bool _pendingPlay;
+        private bool _wantPlaying;
+        private bool _retryScheduled;
 
         public VlcOverlayWindow(Window owner, LibVLC libVlc)
         {
@@ -57,12 +60,12 @@ namespace VideoWall.Viewer
             grid.Children.Add(_status);
             Content = grid;
 
-            _player.Opening += (_, _) => SetStatus("VLC: abrindo o stream…");
-            _player.Buffering += (_, a) => SetStatus($"VLC: carregando {a.Cache:0}%");
+            _player.Opening += (_, _) => SetStatus("VLC: abrindo…");
+            _player.Buffering += (_, a) => SetStatus(a.Cache >= 100 ? null : $"VLC: carregando {a.Cache:0}%");
             _player.Playing += (_, _) => SetStatus(null);
-            _player.EncounteredError += (_, _) => SetStatus("VLC: ERRO ao abrir o stream");
-            _player.EndReached += (_, _) => SetStatus("VLC: transmissão encerrada");
-            _player.Stopped += (_, _) => SetStatus("VLC: parado");
+            // Live HLS expira de tempos em tempos -> erro/fim: re-extrai e reabre sozinho.
+            _player.EncounteredError += (_, _) => { SetStatus("VLC: erro — reabrindo…"); ScheduleRetry(); };
+            _player.EndReached += (_, _) => { SetStatus("VLC: reabrindo…"); ScheduleRetry(); };
         }
 
         private void SetStatus(string? text)
@@ -88,9 +91,10 @@ namespace VideoWall.Viewer
             if (string.Equals(_url, url, StringComparison.Ordinal))
                 return;
             _url = url;
+            _wantPlaying = true;
             _pendingPlay = true;
             if (IsVisible)
-                PlayCurrent(); // já mostrada: toca agora
+                StartPlay(); // já mostrada: toca agora
         }
 
         public void PlaceOnScreen(int x, int y, int w, int h)
@@ -105,27 +109,64 @@ namespace VideoWall.Viewer
 
             // Toca DEPOIS de a janela existir/estar dimensionada (o VLC precisa do HWND).
             if (_pendingPlay)
-                PlayCurrent();
+                StartPlay();
         }
 
-        private void PlayCurrent()
+        /// <summary>
+        /// Resolve e toca: para o YouTube, EXTRAI o .m3u8 real (confiável) em vez de deixar
+        /// o VLC adivinhar; para RTSP/HLS, toca direto.
+        /// </summary>
+        private async void StartPlay()
         {
             _pendingPlay = false;
-            if (string.IsNullOrWhiteSpace(_url))
+            var url = _url;
+            if (string.IsNullOrWhiteSpace(url))
                 return;
+
+            string toPlay = url;
+            if (YouTubeLive.IsYouTube(url))
+            {
+                SetStatus("VLC: obtendo a live do YouTube…");
+                var hls = await YouTubeHls.ExtractAsync(url);
+                if (!string.IsNullOrWhiteSpace(hls))
+                    toPlay = hls!;
+                else
+                    SetStatus("VLC: live indisponível — tentando…");
+            }
+
             try
             {
+                SetStatus("VLC: abrindo…");
                 var old = _media;
-                // FromLocation deixa o VLC resolver (inclui o extrator do YouTube via lua).
-                _media = new Media(_libVlc, _url, FromType.FromLocation);
+                _media = new Media(_libVlc, toPlay, FromType.FromLocation);
                 _player.Play(_media);
                 old?.Dispose();
             }
-            catch { /* URL inválida / VLC indisponível */ }
+            catch
+            {
+                SetStatus("VLC: erro ao abrir — tentando…");
+                ScheduleRetry();
+            }
+        }
+
+        /// <summary>Reabre sozinho após alguns segundos (live HLS expira; offline volta).</summary>
+        private void ScheduleRetry()
+        {
+            if (!_wantPlaying || _retryScheduled)
+                return;
+            _retryScheduled = true;
+            Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(5000);
+                _retryScheduled = false;
+                if (_wantPlaying && !_player.IsPlaying)
+                    StartPlay();
+            }));
         }
 
         public void CloseOverlay()
         {
+            _wantPlaying = false;
             try { _player.Stop(); } catch { }
             try { _media?.Dispose(); } catch { }
             try { _player.Dispose(); } catch { }
