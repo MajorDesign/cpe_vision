@@ -146,6 +146,12 @@ namespace VideoWall.Viewer
                 case ScreenCommand.Restart:
                     RestartSelf();
                     break;
+
+                case ScreenCommand.ToggleOverlay:
+                    // Inverte a preferência do overlay de vídeo e reinicia para aplicar.
+                    TerminalSettings.SetHardwareVideoOverlay(!TerminalSettings.HardwareVideoOverlay);
+                    RestartSelf();
+                    break;
             }
         }
 

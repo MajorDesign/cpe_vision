@@ -30,6 +30,10 @@ namespace VideoWall.Network
         /// permite atualizar terminais 24/7 pelo controlador, sem ir até cada mini-PC.</summary>
         public const string Restart = "restart";
 
+        /// <summary>Liga/desliga o overlay de vídeo por hardware no terminal e reinicia
+        /// (o terminal guarda a preferência e a aplica ao reabrir).</summary>
+        public const string ToggleOverlay = "toggle-overlay";
+
         /// <summary>Porta TCP padrão do canal de comando dos terminais.</summary>
         public const int DefaultPort = 48011;
     }

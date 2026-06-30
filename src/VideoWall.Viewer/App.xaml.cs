@@ -20,11 +20,14 @@ namespace VideoWall.Viewer
             Directory.CreateDirectory(udf);
             Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", udf);
 
-            // Lives tocam sozinhas (quiosque). --disable-features=DirectCompositionVideoOverlays
-            // evita o VÍDEO renderizar preto pelo overlay de hardware na TV.
-            Environment.SetEnvironmentVariable(
-                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                "--autoplay-policy=no-user-gesture-required --disable-features=DirectCompositionVideoOverlays");
+            // Lives tocam sozinhas (quiosque). O OVERLAY DE VÍDEO por hardware é alternável
+            // pelo controlador (botão): DESLIGADO (padrão) compõe o vídeo pela GPU — sempre
+            // visível; LIGADO usa o plano de overlay — mais leve na GPU (alivia a disputa
+            // com dashboards pesados), mas pode ficar preto em algumas placas/TVs.
+            var args = "--autoplay-policy=no-user-gesture-required";
+            if (!TerminalSettings.HardwareVideoOverlay)
+                args += " --disable-features=DirectCompositionVideoOverlays";
+            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", args);
 
             // O pré-load verifica atualizações no GitHub e então abre o terminal.
             new SplashWindow().Show();

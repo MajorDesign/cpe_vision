@@ -573,6 +573,7 @@ namespace VideoWall.ViewModels
         public ICommand SendLayoutToScreenCommand { get; }
         public ICommand ClearScreenCommand { get; }
         public ICommand RestartScreenCommand { get; }
+        public ICommand ToggleOverlayCommand { get; }
         public ICommand RemoveSelectedCommand { get; }
         public ICommand BringToFrontCommand { get; }
         public ICommand SendToBackCommand { get; }
@@ -635,6 +636,7 @@ namespace VideoWall.ViewModels
                 () => SelectedScreen != null && Elements.Count > 0);
             ClearScreenCommand = new RelayCommand(ClearScreen, () => SelectedScreen != null);
             RestartScreenCommand = new RelayCommand(RestartScreen, () => SelectedScreen != null);
+            ToggleOverlayCommand = new RelayCommand(ToggleOverlay, () => SelectedScreen != null);
             RemoveSelectedCommand = new RelayCommand(RemoveSelected, () => SelectedElement != null);
             BringToFrontCommand = new RelayCommand(BringToFront, () => SelectedElement != null);
             SendToBackCommand = new RelayCommand(SendToBack, () => SelectedElement != null);
@@ -1046,6 +1048,30 @@ namespace VideoWall.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Falha ao reiniciar {screen.Name}: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Liga/desliga o overlay de vídeo por hardware no terminal selecionado (o terminal
+        /// inverte a preferência e reinicia para aplicar). Overlay LIGADO alivia a GPU
+        /// (ajuda quando há dashboard pesado disputando), mas pode deixar o vídeo preto em
+        /// algumas placas/TVs — por isso é alternável: se ficar preto, clique de novo.
+        /// </summary>
+        private async void ToggleOverlay()
+        {
+            var screen = SelectedScreen;
+            if (screen == null)
+                return;
+
+            try
+            {
+                await CommandSender.SendAsync(screen.IpAddress, screen.ControlPort,
+                    new ScreenCommand { Type = ScreenCommand.ToggleOverlay });
+                StatusMessage = $"Alternando overlay de vídeo (HW) em {screen.Name}… (reinicia). Se ficar preto, clique de novo.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Falha ao alternar overlay em {screen.Name}: {ex.Message}";
             }
         }
 
