@@ -67,10 +67,10 @@ namespace VideoWall.Network
       if (!qualityFixed) {
         var mp = document.getElementById('movie_player');
         if (mp) {
-          // 480p ('large'): bem mais leve que 720p quando há um dashboard pesado na
-          // parede disputando a GPU. Numa miniatura (PiP) a diferença é imperceptível.
-          try { if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('large', 'large'); } catch(_){}
-          try { if (mp.setPlaybackQuality) mp.setPlaybackQuality('large'); } catch(_){}
+          // Qualidade MÍNIMA ('tiny' = 144p): o mais leve possível na GPU/rede, para a
+          // live não travar mesmo com um dashboard pesado disputando recursos na parede.
+          try { if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('tiny', 'tiny'); } catch(_){}
+          try { if (mp.setPlaybackQuality) mp.setPlaybackQuality('tiny'); } catch(_){}
           qualityFixed = true;
         }
       }
