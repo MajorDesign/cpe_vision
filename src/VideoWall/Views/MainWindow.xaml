@@ -202,10 +202,9 @@
                     <Button Content="📺  Live YouTube (miniatura)" Style="{StaticResource SubtleButton}"
                             Click="AddLive_Click"
                             ToolTip="Cole o link de uma live não listada do YouTube. Aparece como miniatura sobreposta, por cima do navegador."/>
-                    <Button Content="📷  Câmera (RTSP)" Style="{StaticResource SubtleButton}"
-                            Command="{Binding AddCameraCommand}"
-                            IsEnabled="False"
-                            ToolTip="Em validação — disponível em outro momento. Hoje use o Live YouTube para câmeras."/>
+                    <Button Content="📹  Câmera/Live (VLC)" Style="{StaticResource SubtleButton}"
+                            Click="AddCameraLive_Click"
+                            ToolTip="Toca uma câmera/live pelo VLC (nativo, leve): cole o link do YouTube, RTSP ou HLS. Mais leve que o navegador — coexiste melhor com dashboards pesados."/>
 
                     <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
 

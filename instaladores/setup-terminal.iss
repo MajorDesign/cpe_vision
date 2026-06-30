@@ -37,7 +37,8 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Atalhos:"
 
 [Files]
-Source: "..\dist\Terminal\VideoWall.Viewer.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Pasta completa do terminal (inclui o VLC: libvlc + plugins).
+Source: "..\dist\Terminal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; Redistribuiveis (instalados silenciosamente se necessario)
 Source: "redist\windowsdesktop-runtime-8-win-x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsDotNet
 Source: "redist\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2

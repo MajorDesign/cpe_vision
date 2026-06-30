@@ -20,7 +20,7 @@ namespace VideoWall.Viewer
     /// A posição/tamanho são definidos em pixels físicos (SetWindowPos) para casar
     /// exatamente com a célula, independente da escala de DPI.
     /// </summary>
-    internal sealed class OverlayWindow : Window
+    internal sealed class OverlayWindow : Window, IOverlay
     {
         private readonly WebView2 _web;
         private readonly DispatcherTimer _fullscreenTimer;

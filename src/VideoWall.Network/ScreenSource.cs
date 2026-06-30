@@ -38,5 +38,9 @@ namespace VideoWall.Network
         public const string Browser = "browser";
         public const string Color = "color";
         public const string Text2 = "text";
+
+        /// <summary>Câmera/live tocada pelo VLC (nativo, leve). Usa <see cref="Url"/> como
+        /// endereço do stream (link do YouTube, RTSP, HLS…).</summary>
+        public const string Camera = "camera";
     }
 }

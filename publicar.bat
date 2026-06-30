@@ -17,8 +17,8 @@ echo [1/3] Publicando Controlador (framework-dependent)...
 if errorlevel 1 goto erro
 
 echo.
-echo [2/3] Publicando Terminal (framework-dependent, arquivo unico)...
-%DOTNET% publish "%ROOT%src\VideoWall.Viewer\VideoWall.Viewer.csproj" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "%TERM%"
+echo [2/3] Publicando Terminal (framework-dependent, em pasta - necessario para o VLC)...
+%DOTNET% publish "%ROOT%src\VideoWall.Viewer\VideoWall.Viewer.csproj" -c Release -r win-x64 --self-contained false -o "%TERM%"
 if errorlevel 1 goto erro
 
 echo.

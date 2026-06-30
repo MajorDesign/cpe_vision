@@ -44,10 +44,13 @@ namespace VideoWall.Viewer
         private readonly List<FrameworkElement?> _slots = new();
         private readonly List<string?> _slotUrls = new();
 
-        // Janelas sobrepostas (PiP, ex.: lives) por índice de fonte. Ficam sempre no topo,
-        // fora do Surface, porque dois WebView2 na mesma janela não empilham (airspace).
-        private readonly Dictionary<int, OverlayWindow> _overlays = new();
+        // Janelas sobrepostas (PiP) por índice de fonte. Ficam sempre no topo, fora do
+        // Surface (airspace). Podem ser navegador (WebView2) ou câmera/live (VLC).
+        private readonly Dictionary<int, IOverlay> _overlays = new();
         private static readonly object OverlayPlaceholderTag = new();
+
+        // Instância do VLC compartilhada (câmeras/lives nativas). Nula se o VLC falhar.
+        private LibVLCSharp.Shared.LibVLC? _libVlc;
 
         /// <summary>
         /// Largura lógica (CSS) fixa em que toda página é diagramada. Como independe do
@@ -69,6 +72,14 @@ namespace VideoWall.Viewer
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            // Inicializa o VLC (câmeras/lives nativas). Se falhar, segue sem câmeras VLC.
+            try
+            {
+                LibVLCSharp.Shared.Core.Initialize();
+                _libVlc = new LibVLCSharp.Shared.LibVLC("--no-video-title-show", "--network-caching=1000");
+            }
+            catch { _libVlc = null; }
+
             string machine = Environment.MachineName;
             string ip = NetworkUtil.GetLocalIPv4();
 
@@ -210,7 +221,9 @@ namespace VideoWall.Viewer
                 // Miniatura sobreposta (PiP): vive numa janela própria sempre-no-topo.
                 // A vaga no Surface fica como um marcador transparente (só para manter os
                 // índices alinhados com o controlador, usados pelo controle ao vivo).
-                bool isOverlay = src.Kind == ScreenSource.Browser && src.Overlay;
+                // Navegador overlay (live YouTube) ou QUALQUER câmera (VLC, sempre janela).
+                bool isOverlay = (src.Kind == ScreenSource.Browser && src.Overlay)
+                                 || src.Kind == ScreenSource.Camera;
 
                 FrameworkElement element = isOverlay ? ReconcilePlaceholder(i) : ReconcileSlot(i, src);
                 element.Width = Math.Max(1, src.Width * w);
@@ -387,9 +400,27 @@ namespace VideoWall.Viewer
         /// <summary>Cria/reposiciona a janela sobreposta da vaga <paramref name="i"/>.</summary>
         private void UpdateOverlay(int i, ScreenSource src, double w, double h)
         {
+            bool wantVlc = src.Kind == ScreenSource.Camera;
+
+            // Recria se o tipo mudou (navegador <-> câmera) na mesma vaga.
+            if (_overlays.TryGetValue(i, out var existing) &&
+                (existing is VlcOverlayWindow) != wantVlc)
+            {
+                existing.CloseOverlay();
+                _overlays.Remove(i);
+            }
+
             if (!_overlays.TryGetValue(i, out var ov))
             {
-                ov = new OverlayWindow(this);
+                if (wantVlc)
+                {
+                    if (_libVlc == null) return; // VLC indisponível: ignora a câmera
+                    ov = new VlcOverlayWindow(this, _libVlc);
+                }
+                else
+                {
+                    ov = new OverlayWindow(this);
+                }
                 _overlays[i] = ov;
             }
 
@@ -923,6 +954,7 @@ namespace VideoWall.Viewer
             _liveViewServer?.Dispose();
             _layoutQueryServer?.Dispose();
             _beacon?.Dispose();
+            try { _libVlc?.Dispose(); } catch { }
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
