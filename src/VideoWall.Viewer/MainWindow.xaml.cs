@@ -72,11 +72,16 @@ namespace VideoWall.Viewer
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            // Inicializa o VLC (câmeras/lives nativas). Se falhar, segue sem câmeras VLC.
+            // Inicializa o VLC (câmeras/lives nativas). Passa o caminho explícito dos
+            // binários (libvlc\win-x64) para garantir que ache os plugins quando instalado.
             try
             {
-                LibVLCSharp.Shared.Core.Initialize();
-                _libVlc = new LibVLCSharp.Shared.LibVLC("--no-video-title-show", "--network-caching=1000");
+                var vlcDir = System.IO.Path.Combine(AppContext.BaseDirectory, "libvlc", "win-x64");
+                if (System.IO.Directory.Exists(vlcDir))
+                    LibVLCSharp.Shared.Core.Initialize(vlcDir);
+                else
+                    LibVLCSharp.Shared.Core.Initialize();
+                _libVlc = new LibVLCSharp.Shared.LibVLC("--no-video-title-show", "--network-caching=1500");
             }
             catch { _libVlc = null; }
 

@@ -18,7 +18,10 @@ namespace VideoWall.Viewer
         private readonly LibVLC _libVlc;
         private readonly MediaPlayer _player;
         private readonly VideoView _videoView;
+        private readonly System.Windows.Controls.TextBlock _status;
+        private Media? _media;
         private string? _url;
+        private bool _pendingPlay;
 
         public VlcOverlayWindow(Window owner, LibVLC libVlc)
         {
@@ -35,7 +38,41 @@ namespace VideoWall.Viewer
 
             _player = new MediaPlayer(_libVlc);
             _videoView = new VideoView { MediaPlayer = _player };
-            Content = _videoView;
+
+            // Diagnóstico visível: mostra o estado do VLC por cima (some quando toca).
+            _status = new System.Windows.Controls.TextBlock
+            {
+                Text = "VLC: iniciando…",
+                Foreground = System.Windows.Media.Brushes.White,
+                Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(160, 0, 0, 0)),
+                FontSize = 13,
+                Padding = new Thickness(6, 3, 6, 3),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+
+            var grid = new System.Windows.Controls.Grid();
+            grid.Children.Add(_videoView);
+            grid.Children.Add(_status);
+            Content = grid;
+
+            _player.Opening += (_, _) => SetStatus("VLC: abrindo o stream…");
+            _player.Buffering += (_, a) => SetStatus($"VLC: carregando {a.Cache:0}%");
+            _player.Playing += (_, _) => SetStatus(null);
+            _player.EncounteredError += (_, _) => SetStatus("VLC: ERRO ao abrir o stream");
+            _player.EndReached += (_, _) => SetStatus("VLC: transmissão encerrada");
+            _player.Stopped += (_, _) => SetStatus("VLC: parado");
+        }
+
+        private void SetStatus(string? text)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (text == null) { _status.Visibility = Visibility.Collapsed; return; }
+                _status.Text = text;
+                _status.Visibility = Visibility.Visible;
+            }));
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -51,14 +88,9 @@ namespace VideoWall.Viewer
             if (string.Equals(_url, url, StringComparison.Ordinal))
                 return;
             _url = url;
-            try
-            {
-                // FromLocation deixa o VLC resolver (inclui o extrator do YouTube via lua).
-                var media = new Media(_libVlc, url, FromType.FromLocation);
-                _player.Play(media);
-                media.Dispose();
-            }
-            catch { /* URL inválida / VLC indisponível */ }
+            _pendingPlay = true;
+            if (IsVisible)
+                PlayCurrent(); // já mostrada: toca agora
         }
 
         public void PlaceOnScreen(int x, int y, int w, int h)
@@ -70,11 +102,32 @@ namespace VideoWall.Viewer
             var hwnd = new WindowInteropHelper(this).Handle;
             if (hwnd != IntPtr.Zero)
                 SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+            // Toca DEPOIS de a janela existir/estar dimensionada (o VLC precisa do HWND).
+            if (_pendingPlay)
+                PlayCurrent();
+        }
+
+        private void PlayCurrent()
+        {
+            _pendingPlay = false;
+            if (string.IsNullOrWhiteSpace(_url))
+                return;
+            try
+            {
+                var old = _media;
+                // FromLocation deixa o VLC resolver (inclui o extrator do YouTube via lua).
+                _media = new Media(_libVlc, _url, FromType.FromLocation);
+                _player.Play(_media);
+                old?.Dispose();
+            }
+            catch { /* URL inválida / VLC indisponível */ }
         }
 
         public void CloseOverlay()
         {
             try { _player.Stop(); } catch { }
+            try { _media?.Dispose(); } catch { }
             try { _player.Dispose(); } catch { }
             try { _videoView.Dispose(); } catch { }
             try { Close(); } catch { }
