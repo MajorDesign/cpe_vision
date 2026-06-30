@@ -33,6 +33,7 @@ namespace VideoWall.Viewer
         private LiveStateServer? _liveStateServer;
         private LiveViewServer? _liveViewServer;
         private LayoutQueryServer? _layoutQueryServer;
+        private System.Windows.Threading.DispatcherTimer? _layoutSaveTimer;
 
         // Último layout aplicado (para o controlador reconstruir a parede ao reabrir).
         private IReadOnlyList<ScreenSource>? _currentSources;
@@ -111,6 +112,20 @@ namespace VideoWall.Viewer
             _layoutQueryServer = new LayoutQueryServer(GetCurrentLayoutAsync);
             try { _layoutQueryServer.Start(); } catch { /* porta ocupada */ }
 
+            // RESTAURA o layout salvo (atualização/overlay/queda de energia): volta exibindo
+            // o que estava, com as URLs ao vivo. A sessão/login está na pasta do WebView2,
+            // então a página volta logada — sem reprojetar do controlador.
+            var saved = TerminalLayoutStore.Load();
+            if (saved is { Count: > 0 })
+                Dispatcher.BeginInvoke(new Action(() => ApplyLayout(saved)),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+
+            // Atualiza o layout salvo periodicamente para capturar navegação/login ao vivo.
+            _layoutSaveTimer = new System.Windows.Threading.DispatcherTimer
+            { Interval = TimeSpan.FromSeconds(15) };
+            _layoutSaveTimer.Tick += (_, _) => SaveCurrentLayout();
+            _layoutSaveTimer.Start();
+
             // A atualização agora é pelo GitHub, verificada no pré-load (SplashWindow).
         }
 
@@ -159,6 +174,7 @@ namespace VideoWall.Viewer
         /// nova no GitHub (permite atualizar terminais 24/7 pelo controlador).</summary>
         private void RestartSelf()
         {
+            SaveCurrentLayout(); // garante o estado mais recente (com login/URLs ao vivo)
             try
             {
                 var exe = Environment.ProcessPath ??
@@ -214,6 +230,9 @@ namespace VideoWall.Viewer
 
             Surface.Visibility = Visibility.Visible;
             IdlePanel.Visibility = Visibility.Collapsed;
+
+            // Persiste para restaurar ao reabrir (atualização/overlay/queda de energia).
+            SaveCurrentLayout();
         }
 
         /// <summary>
@@ -446,6 +465,7 @@ namespace VideoWall.Viewer
             _slots.Clear();
             _slotUrls.Clear();
             _currentSources = null;
+            TerminalLayoutStore.Save(null); // tela limpa continua limpa ao reabrir
         }
 
         // ----------------------------------------------------------------------------
@@ -578,42 +598,56 @@ namespace VideoWall.Viewer
             {
                 try
                 {
-                    if (_currentSources == null || _currentSources.Count == 0)
-                    {
-                        tcs.SetResult(null);
-                        return;
-                    }
-
-                    var list = new List<ScreenSource>(_currentSources.Count);
-                    for (int i = 0; i < _currentSources.Count; i++)
-                    {
-                        var s = _currentSources[i];
-                        var copy = new ScreenSource
-                        {
-                            Kind = s.Kind, X = s.X, Y = s.Y, Width = s.Width, Height = s.Height,
-                            ZIndex = s.ZIndex, Url = s.Url, Zoom = s.Zoom, Overlay = s.Overlay,
-                            ColorHex = s.ColorHex, Text = s.Text, FontSize = s.FontSize,
-                            ForegroundHex = s.ForegroundHex,
-                        };
-
-                        // URL AO VIVO do navegador (após cliques/login/navegação).
-                        if (s.Kind == ScreenSource.Browser && i < _slots.Count &&
-                            _slots[i] is WebView2 web && web.CoreWebView2 is { } core)
-                        {
-                            var live = core.Source;
-                            if (!string.IsNullOrWhiteSpace(live) &&
-                                live.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                                copy.Url = live;
-                        }
-
-                        list.Add(copy);
-                    }
-
-                    tcs.SetResult(JsonSerializer.Serialize(list));
+                    var list = BuildCurrentLayout();
+                    tcs.SetResult(list != null ? JsonSerializer.Serialize(list) : null);
                 }
                 catch { tcs.SetResult(null); }
             });
             return tcs.Task;
+        }
+
+        /// <summary>
+        /// Monta a lista de fontes ATUAL (posições/tipo + URL AO VIVO de cada navegador).
+        /// SÓ pode ser chamado na thread de UI (acessa o WebView2). Usado tanto pela
+        /// consulta do controlador quanto para salvar/restaurar o layout no terminal.
+        /// </summary>
+        private List<ScreenSource>? BuildCurrentLayout()
+        {
+            if (_currentSources == null || _currentSources.Count == 0)
+                return null;
+
+            var list = new List<ScreenSource>(_currentSources.Count);
+            for (int i = 0; i < _currentSources.Count; i++)
+            {
+                var s = _currentSources[i];
+                var copy = new ScreenSource
+                {
+                    Kind = s.Kind, X = s.X, Y = s.Y, Width = s.Width, Height = s.Height,
+                    ZIndex = s.ZIndex, Url = s.Url, Zoom = s.Zoom, Overlay = s.Overlay,
+                    ColorHex = s.ColorHex, Text = s.Text, FontSize = s.FontSize,
+                    ForegroundHex = s.ForegroundHex,
+                };
+
+                // URL AO VIVO do navegador (após cliques/login/navegação).
+                if (s.Kind == ScreenSource.Browser && i < _slots.Count &&
+                    _slots[i] is WebView2 web && web.CoreWebView2 is { } core)
+                {
+                    var live = core.Source;
+                    if (!string.IsNullOrWhiteSpace(live) &&
+                        live.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        copy.Url = live;
+                }
+
+                list.Add(copy);
+            }
+            return list;
+        }
+
+        /// <summary>Salva em disco o layout atual (com URLs ao vivo) para restaurar ao reabrir.</summary>
+        private void SaveCurrentLayout()
+        {
+            try { TerminalLayoutStore.Save(BuildCurrentLayout()); }
+            catch { }
         }
 
         private static Task DispatchMouse(CoreWebView2 core, string type, double x, double y, RemoteInputEvent ev)
