@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using VideoWall.Network;
 
@@ -8,12 +7,15 @@ namespace VideoWall.Viewer
 {
     /// <summary>
     /// Pré-load do terminal: mostra a versão, verifica no GitHub se há uma versão mais nova
-    /// e, se houver, baixa o executável e se auto-substitui (reinicia). Caso contrário (ou
+    /// e, se houver, baixa o instalador e o executa (silencioso). Caso contrário (ou
     /// sem internet), abre o terminal normalmente.
     /// </summary>
     public partial class SplashWindow : Window
     {
-        private const string AssetName = "VideoWall.Viewer.exe";
+        // Atualiza via INSTALADOR (como o controlador): a autossubstituição do .exe
+        // falhava em Arquivos de Programas (sem permissão de escrita do quiosque),
+        // deixando o terminal preso numa versão. O instalador eleva e troca o app.
+        private const string AssetName = "setup-terminal.exe";
 
         // Tempo mínimo que o pré-load fica visível, para dar tempo de ver a animação
         // (sem isso, quando não há atualização, ele fecha rápido demais).
@@ -39,10 +41,19 @@ namespace VideoWall.Viewer
                     latest.Assets.TryGetValue(AssetName, out var url))
                 {
                     StatusText.Text = $"Baixando versão {latest.Version}…";
-                    string temp = await GitHubUpdater.DownloadToTempAsync(url, AssetName);
+                    string installer = await GitHubUpdater.DownloadToTempAsync(url, AssetName);
 
-                    StatusText.Text = "Aplicando atualização…";
-                    SelfReplaceAndRestart(temp);
+                    StatusText.Text = "Instalando atualização…";
+                    // Instalação SILENCIOSA: fecha o terminal em uso, instala e reabre
+                    // sozinho (ver [Run] WizardSilent no setup-terminal.iss).
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = installer,
+                        Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS",
+                        UseShellExecute = true,
+                    });
+
+                    Application.Current.Shutdown(); // o instalador assume e reabre o terminal
                     return;
                 }
             }
@@ -57,39 +68,6 @@ namespace VideoWall.Viewer
                 await System.Threading.Tasks.Task.Delay(MinSplashMs - elapsed);
 
             OpenMainAndClose();
-        }
-
-        private void SelfReplaceAndRestart(string newExeTempPath)
-        {
-            string exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule!.FileName;
-            string dir = Path.GetDirectoryName(exePath)!;
-            string exeName = Path.GetFileName(exePath);
-
-            // Coloca o novo binário ao lado do atual e troca via .cmd depois que o processo sai.
-            File.Copy(newExeTempPath, Path.Combine(dir, exeName + ".new"), overwrite: true);
-
-            int pid = Environment.ProcessId;
-            string cmdPath = Path.Combine(dir, "atualizar.cmd");
-            string script =
-                "@echo off\r\n" +
-                ":wait\r\n" +
-                $"tasklist /fi \"PID eq {pid}\" | findstr /i \"{pid}\" >nul && ( timeout /t 1 /nobreak >nul & goto wait )\r\n" +
-                $"move /y \"{exeName}.new\" \"{exeName}\" >nul\r\n" +
-                $"start \"\" \"{exeName}\"\r\n" +
-                "del \"%~f0\"\r\n";
-            File.WriteAllText(cmdPath, script);
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"{cmdPath}\"",
-                WorkingDirectory = dir,
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                CreateNoWindow = true,
-            });
-
-            Application.Current.Shutdown();
         }
 
         private void OpenMainAndClose()

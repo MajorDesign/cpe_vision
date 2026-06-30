@@ -41,11 +41,11 @@ namespace VideoWall.Views
                 // A pasta de dados do WebView2 PRECISA ser gravável. Quando o controlador
                 // roda instalado (Arquivos de Programas), a pasta padrão fica num local
                 // somente leitura e o navegador trava — por isso usamos LocalAppData.
-                // --disable-gpu evita a tela preta do WebView2 em VM/acesso remoto/algumas
-                // placas (a pré-visualização renderizava escura). --autoplay-policy deixa
-                // a live tocar sozinha. Opções explícitas garantem que valham nesta janela.
+                // Desliga o overlay de vídeo por hardware (vídeo renderizava PRETO em
+                // notebook/TV) e deixa a live tocar sozinha. Opções explícitas garantem
+                // que valham nesta janela (ela cria o ambiente com pasta própria).
                 var options = new CoreWebView2EnvironmentOptions(
-                    "--autoplay-policy=no-user-gesture-required --disable-gpu");
+                    "--autoplay-policy=no-user-gesture-required --disable-features=DirectCompositionVideoOverlays");
                 var env = await CoreWebView2Environment.CreateAsync(null, UserDataFolder(), options);
                 await Web.EnsureCoreWebView2Async(env);
 

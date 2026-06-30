@@ -56,6 +56,8 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""CPE VideoWall Terminal"""; Flags: runhidden; StatusMsg: "Configurando firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""CPE VideoWall Terminal"" dir=in action=allow program=""{app}\VideoWall.Viewer.exe"" enable=yes profile=any"; Flags: runhidden waituntilterminated; StatusMsg: "Configurando firewall..."
 Filename: "{app}\VideoWall.Viewer.exe"; Description: "Iniciar o Terminal agora"; Flags: nowait postinstall skipifsilent
+; Auto-update silencioso: reabre o terminal sozinho após instalar.
+Filename: "{app}\VideoWall.Viewer.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
 [Code]
 function DotNet8Present(): Boolean;
