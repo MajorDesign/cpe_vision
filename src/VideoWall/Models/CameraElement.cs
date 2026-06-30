@@ -17,15 +17,11 @@ namespace VideoWall.Models
             set { if (SetProperty(ref _streamUrl, value)) OnPropertyChanged(nameof(Summary)); }
         }
 
-        /// <summary>Miniatura sobreposta (PiP): o terminal exibe numa janela própria
-        /// sempre-no-topo, por cima dos navegadores.</summary>
-        public bool IsOverlay { get; set; }
-
         public override string Summary => StreamUrl;
 
         public override WallElement Clone()
         {
-            var copy = new CameraElement { StreamUrl = StreamUrl, IsOverlay = IsOverlay };
+            var copy = new CameraElement { StreamUrl = StreamUrl };
             CopyBaseTo(copy);
             return copy;
         }

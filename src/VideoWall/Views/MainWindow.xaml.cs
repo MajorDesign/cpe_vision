@@ -139,21 +139,6 @@ namespace VideoWall.Views
                 _viewModel.SendLayoutToScreenCommand.Execute(null);
         }
 
-        /// <summary>
-        /// Adiciona uma câmera/live tocada pelo VLC (nativo, leve) como miniatura sobreposta.
-        /// Aceita link do YouTube (o VLC extrai o stream), RTSP, HLS… Mais leve que o
-        /// navegador — coexiste melhor com dashboards pesados na parede.
-        /// </summary>
-        private void AddCameraLive_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new UrlEditWindow("https://www.youtube.com/live/") { Owner = this };
-            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.ResultUrl))
-                return;
-
-            _viewModel.AddCameraOverlay(dialog.ResultUrl.Trim());
-            if (_viewModel.SendLayoutToScreenCommand.CanExecute(null))
-                _viewModel.SendLayoutToScreenCommand.Execute(null);
-        }
 
         /// <summary>Edita o conteúdo/tamanho/cor de um Texto (duplo-clique na pré-visualização).</summary>
         private void EditText(Models.TextElement text)

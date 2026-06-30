@@ -910,11 +910,6 @@ namespace VideoWall.ViewModels
                     FontSize = s.FontSize,
                     ForegroundHex = s.ForegroundHex ?? "#FFFFFF",
                 },
-                ScreenSource.Camera => new CameraElement
-                {
-                    StreamUrl = s.Url ?? string.Empty,
-                    IsOverlay = s.Overlay,
-                },
                 _ => null,
             };
             if (el == null)
@@ -994,13 +989,8 @@ namespace VideoWall.ViewModels
                         source.FontSize = t.FontSize;
                         source.ForegroundHex = t.ForegroundHex;
                         break;
-                    case CameraElement cam:
-                        source.Kind = ScreenSource.Camera;
-                        source.Url = cam.StreamUrl;     // VLC toca o stream nativamente
-                        source.Overlay = cam.IsOverlay;
-                        break;
                     default:
-                        continue; // imagem/aplicativo ainda não vão para a rede
+                        continue; // câmera/imagem/aplicativo ainda não vão para a rede
                 }
 
                 sources.Add(source);
@@ -1783,35 +1773,6 @@ namespace VideoWall.ViewModels
             Elements.Add(element);
             SelectedElement = element;
             StatusMessage = $"Live adicionada: {element.Name}";
-            CommandManager.InvalidateRequerySuggested();
-            return element;
-        }
-
-        /// <summary>
-        /// Adiciona uma câmera/live tocada pelo VLC (nativo, leve) como miniatura (PiP)
-        /// sobreposta no canto superior direito. Aceita link do YouTube, RTSP, HLS…
-        /// </summary>
-        public CameraElement AddCameraOverlay(string streamUrl)
-        {
-            _elementCounter++;
-            double ww = WallWidth > 0 ? WallWidth : RemoteScreenWidth;
-            const double margin = 24;
-
-            var element = new CameraElement
-            {
-                StreamUrl = streamUrl,
-                Width = 480,
-                Height = 270,
-                IsOverlay = true,
-            };
-            element.Name = $"Câmera {_elementCounter}";
-            element.ZIndex = NextZIndex();
-            element.X = -WallOffsetX + ww - element.Width - margin;
-            element.Y = -WallOffsetY + margin;
-
-            Elements.Add(element);
-            SelectedElement = element;
-            StatusMessage = $"Câmera (VLC) adicionada: {element.Name}";
             CommandManager.InvalidateRequerySuggested();
             return element;
         }

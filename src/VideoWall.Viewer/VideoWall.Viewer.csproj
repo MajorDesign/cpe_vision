@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>..\..\assets\cpe.ico</ApplicationIcon>
     <!-- Versão do terminal. Suba este número antes de publicar uma atualização. -->
-    <Version>1.37.0</Version>
+    <Version>1.38.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,10 +19,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
-    <!-- VLC: toca câmeras/lives nativamente (mais leve que a página do navegador). -->
-    <PackageReference Include="LibVLCSharp" Version="3.10.0" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.10.0" />
-    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
   </ItemGroup>
 
 </Project>
