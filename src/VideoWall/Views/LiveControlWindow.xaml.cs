@@ -1,70 +1,53 @@
 using System;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
-using Microsoft.Web.WebView2.Core;
 using VideoWall.Network;
 
 namespace VideoWall.Views
 {
     /// <summary>
-    /// Janela de "controle ao vivo": espelha uma página web e encaminha, em tempo real,
-    /// toda a entrada do usuário (rolagem, cliques, arraste, teclado e navegação) para o
-    /// terminal selecionado, que reproduz os eventos na própria página.
+    /// Janela de "controle ao vivo": mostra o ESPELHO EXATO de uma célula do terminal
+    /// (fluxo de imagens vindo da TV) e encaminha, em tempo real, toda a entrada do
+    /// usuário (mouse, rolagem, teclado, navegação) para o terminal — que é o único
+    /// navegador de verdade (mantém sessão/login). Assim controlador e terminal nunca
+    /// divergem: o que você vê é o que está na TV.
     /// </summary>
     public partial class LiveControlWindow : Window
     {
-        private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
-
-        // Script injetado em cada página para capturar a entrada e enviá-la ao host.
-        private const string CaptureScript = @"
-(function(){
-  if (window.__cpeHooked) return; window.__cpeHooked = true;
-  function W(){ return window.innerWidth || 1; }
-  function H(){ return window.innerHeight || 1; }
-  function m(e){ return (e.altKey?1:0)|(e.ctrlKey?2:0)|(e.metaKey?4:0)|(e.shiftKey?8:0); }
-  function s(o){ try{ window.chrome.webview.postMessage(JSON.stringify(o)); }catch(_){} }
-  var lm=0;
-  window.addEventListener('mousemove', function(e){ var t=Date.now(); if(t-lm<30)return; lm=t;
-     s({Kind:'mousemove',X:e.clientX/W(),Y:e.clientY/H(),Button:e.button,Buttons:e.buttons,Modifiers:m(e)}); }, true);
-  window.addEventListener('mousedown', function(e){ s({Kind:'mousedown',X:e.clientX/W(),Y:e.clientY/H(),Button:e.button,Buttons:e.buttons,Modifiers:m(e)}); }, true);
-  window.addEventListener('mouseup', function(e){ s({Kind:'mouseup',X:e.clientX/W(),Y:e.clientY/H(),Button:e.button,Buttons:e.buttons,Modifiers:m(e)}); }, true);
-  window.addEventListener('wheel', function(e){ s({Kind:'wheel',X:e.clientX/W(),Y:e.clientY/H(),DeltaX:e.deltaX,DeltaY:e.deltaY,Modifiers:m(e)}); }, true);
-  window.addEventListener('keydown', function(e){ s({Kind:'keydown',Key:e.key,Code:e.code,KeyCode:e.keyCode,Modifiers:m(e)}); }, true);
-  window.addEventListener('keyup', function(e){ s({Kind:'keyup',Key:e.key,Code:e.code,KeyCode:e.keyCode,Modifiers:m(e)}); }, true);
-})();";
-
         private readonly string _ip;
-        private readonly string _screenName;
         private readonly int _targetIndex;
         private readonly double _baseZoom;   // zoom projetado da célula (geralmente 1)
         private readonly double _aspect;     // proporção largura/altura da célula
         private double _userZoom = 1.0;      // zoom relativo do apresentador
+
         private readonly LiveInputSender _sender = new();
+        private readonly LiveViewClient _view = new();
         private bool _closing;
 
-        /// <summary>Largura lógica (CSS) em que a página é diagramada, igual à do terminal.</summary>
-        private double Canonical => 1920.0 / (_baseZoom * _userZoom);
+        private int _buttons;                // máscara de botões pressionados (DOM)
+        private long _lastMoveTicks;
 
         /// <param name="targetIndex">Índice do navegador-alvo no layout (a célula a controlar).</param>
-        /// <param name="baseZoom">Zoom projetado da célula (para alinhar a diagramação).</param>
+        /// <param name="baseZoom">Zoom projetado da célula (enviado ao terminal ao ajustar o zoom).</param>
         /// <param name="aspect">Proporção largura/altura da célula (para o espelho ter o mesmo formato).</param>
         public LiveControlWindow(string ip, string screenName, string initialUrl, int targetIndex,
             double baseZoom, double aspect)
         {
             InitializeComponent();
             _ip = ip;
-            _screenName = screenName;
             _targetIndex = targetIndex;
             _baseZoom = baseZoom > 0 ? baseZoom : 1.0;
             _aspect = aspect > 0 ? aspect : 16.0 / 9.0;
             UrlBox.Text = string.IsNullOrWhiteSpace(initialUrl) ? "https://" : initialUrl;
             TargetLabel.Text = $"→ {screenName} · navegador {targetIndex + 1}";
+
+            // Teclado da janela inteira -> terminal (exceto quando digitando na barra de URL).
+            PreviewKeyDown += OnPreviewKeyDown;
+            PreviewKeyUp += OnPreviewKeyUp;
+            PreviewTextInput += OnPreviewTextInput;
+
             Loaded += OnLoaded;
             Closed += (_, _) => Cleanup();
             HighlightTool();
@@ -73,49 +56,6 @@ namespace VideoWall.Views
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                var env = await CoreWebView2Environment.CreateAsync(null, UserDataFolder(), null);
-                await Web.EnsureCoreWebView2Async(env);
-
-                await Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(CaptureScript);
-                Web.CoreWebView2.WebMessageReceived += OnWebMessage;
-                Web.CoreWebView2.SourceChanged += (_, _) =>
-                {
-                    var src = Web.CoreWebView2.Source;
-                    if (!UrlBox.IsKeyboardFocused)
-                        UrlBox.Text = src;
-                    // Navegação AUTORITATIVA: qualquer troca de página (clique, redirecionamento,
-                    // barra de endereço) é refletida exatamente no terminal.
-                    ForwardNavigation(src);
-                };
-
-                // Diagrama a página na MESMA largura da TV para que a rolagem/altura
-                // batam com o terminal (reaplicado ao redimensionar e ao navegar).
-                Web.CoreWebView2.NavigationCompleted += (_, _) => OnNavigationCompleted();
-                Web.SizeChanged += (_, _) => ApplyFitZoom();
-                ApplyFitZoom();
-            }
-            catch
-            {
-                Hint.Text = "Não foi possível iniciar o navegador de controle.";
-                return;
-            }
-
-            // Continua de onde a célula está: pergunta ao terminal a página e a rolagem
-            // atuais e começa o espelho exatamente nesse ponto (sem resetar o terminal).
-            string startUrl = NormalizeUrl(UrlBox.Text);
-            var state = await LiveStateClient.RequestAsync(_ip, _targetIndex);
-            if (state != null && !string.IsNullOrWhiteSpace(state.Url) &&
-                state.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                startUrl = state.Url;
-                UrlBox.Text = state.Url;
-                _pendingScrollX = state.ScrollX;
-                _pendingScrollY = state.ScrollY;
-                _lastNavSent = state.Url; // já é a página do terminal; não reenviar
-            }
-
             try
             {
                 await _sender.ConnectAsync(_ip);
@@ -127,76 +67,215 @@ namespace VideoWall.Views
                 Hint.Text = $"Falha ao conectar ao terminal: {ex.Message}";
             }
 
-            if (!string.IsNullOrEmpty(startUrl))
-                Web.CoreWebView2.Navigate(startUrl);
+            // Recebe os frames ao vivo da célula e exibe (espelho exato da TV).
+            _view.FrameReceived += OnFrame;
+            _view.Start(_ip, _targetIndex);
+
+            DrawOverlay.Focus();
         }
 
-        private double _pendingScrollX;
-        private double _pendingScrollY;
-        private bool _scrollRestored;
-
-        /// <summary>Ao terminar de carregar: ajusta o zoom e, na 1ª vez, restaura a rolagem
-        /// para o mesmo ponto em que o terminal estava.</summary>
-        private async void OnNavigationCompleted()
+        /// <summary>Decodifica o frame em thread de fundo e atribui a imagem na UI.</summary>
+        private void OnFrame(byte[] jpeg)
         {
-            ApplyFitZoom();
-
-            if (_scrollRestored || (_pendingScrollX == 0 && _pendingScrollY == 0))
-                return;
-            _scrollRestored = true;
-
             try
             {
-                var x = _pendingScrollX.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                var y = _pendingScrollY.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                await Web.CoreWebView2.ExecuteScriptAsync($"window.scrollTo({x},{y})");
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.StreamSource = new MemoryStream(jpeg);
+                bmp.EndInit();
+                bmp.Freeze();
+                Dispatcher.BeginInvoke(() => { if (!_closing) Mirror.Source = bmp; });
             }
-            catch { /* rolagem indisponível: ignora */ }
+            catch { /* frame inválido: ignora */ }
         }
 
-        /// <summary>
-        /// Ajusta o zoom da janela de controle para que a página seja diagramada na MESMA
-        /// largura canônica usada pelo terminal. Assim a página reflui igual nos dois e a
-        /// rolagem fica alinhada. Não afeta o encaminhamento de entrada (coordenadas
-        /// continuam normalizadas pela largura lógica da página).
-        /// </summary>
-        private void ApplyFitZoom()
+        // ------------------------------------------------------------------ Mouse -> terminal
+
+        private void OnSurfaceMouseMove(object sender, MouseEventArgs e)
         {
-            try
-            {
-                if (Web.CoreWebView2 == null)
-                    return;
+            if (_tool != "cursor") { if (_drawing) SendAnnot("annot-point", e.GetPosition(DrawOverlay)); return; }
 
-                double w = Web.ActualWidth;
-                if (w <= 0)
-                    return;
-
-                Web.ZoomFactor = Math.Clamp(w / Canonical, 0.25, 4.0);
-            }
-            catch { /* zoom indisponível: mantém o atual */ }
+            long t = Environment.TickCount64;
+            if (t - _lastMoveTicks < 30) return; // ~33/s
+            _lastMoveTicks = t;
+            SendMouse("mousemove", e.GetPosition(DrawOverlay), 0);
         }
 
-        private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
+        private void OnSurfaceMouseDown(object sender, MouseButtonEventArgs e)
         {
-            try
+            DrawOverlay.Focus();
+            var p = e.GetPosition(DrawOverlay);
+
+            if (_tool != "cursor")
             {
-                var ev = JsonSerializer.Deserialize<RemoteInputEvent>(args.TryGetWebMessageAsString(), JsonOpts);
-                if (ev != null)
+                if (e.ChangedButton == MouseButton.Left)
                 {
-                    ev.TargetIndex = _targetIndex; // direciona para a célula controlada
-                    _sender.Send(ev);
+                    _drawing = true;
+                    DrawOverlay.CaptureMouse();
+                    SendAnnot("annot-start", p);
+                    e.Handled = true;
                 }
+                return;
             }
-            catch { /* mensagem inesperada: ignora */ }
+
+            int dom = DomButton(e.ChangedButton);
+            _buttons |= DomMask(e.ChangedButton);
+            DrawOverlay.CaptureMouse();
+            SendMouse("mousedown", p, dom);
+            e.Handled = true;
         }
+
+        private void OnSurfaceMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            var p = e.GetPosition(DrawOverlay);
+
+            if (_tool != "cursor")
+            {
+                if (_drawing && e.ChangedButton == MouseButton.Left)
+                {
+                    _drawing = false;
+                    DrawOverlay.ReleaseMouseCapture();
+                    SendAnnot("annot-end", p);
+                    e.Handled = true;
+                }
+                return;
+            }
+
+            int dom = DomButton(e.ChangedButton);
+            _buttons &= ~DomMask(e.ChangedButton);
+            SendMouse("mouseup", p, dom);
+            DrawOverlay.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+
+        private void OnSurfaceWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_tool != "cursor") return;
+            var n = Norm(e.GetPosition(DrawOverlay));
+            _sender.Send(new RemoteInputEvent
+            {
+                Kind = "wheel",
+                X = n.X,
+                Y = n.Y,
+                DeltaY = -e.Delta,   // roda para cima (Delta>0) = rolar para cima (deltaY<0)
+                Modifiers = Mods(),
+                TargetIndex = _targetIndex,
+            });
+            e.Handled = true;
+        }
+
+        private void SendMouse(string kind, Point p, int button)
+        {
+            var n = Norm(p);
+            _sender.Send(new RemoteInputEvent
+            {
+                Kind = kind,
+                X = n.X,
+                Y = n.Y,
+                Button = button,
+                Buttons = _buttons,
+                Modifiers = Mods(),
+                TargetIndex = _targetIndex,
+            });
+        }
+
+        private Point Norm(Point p)
+        {
+            double w = DrawOverlay.ActualWidth, h = DrawOverlay.ActualHeight;
+            return new Point(
+                w > 0 ? Math.Clamp(p.X / w, 0, 1) : 0,
+                h > 0 ? Math.Clamp(p.Y / h, 0, 1) : 0);
+        }
+
+        private static int DomButton(MouseButton b) => b switch
+        {
+            MouseButton.Left => 0,
+            MouseButton.Middle => 1,
+            MouseButton.Right => 2,
+            _ => 0,
+        };
+
+        private static int DomMask(MouseButton b) => b switch
+        {
+            MouseButton.Left => 1,
+            MouseButton.Right => 2,
+            MouseButton.Middle => 4,
+            _ => 0,
+        };
+
+        // --------------------------------------------------------------- Teclado -> terminal
+
+        private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (UrlBox.IsKeyboardFocused || string.IsNullOrEmpty(e.Text))
+                return;
+
+            // Caracteres digitados (login, formulários): enviados como tecla com texto.
+            foreach (char c in e.Text)
+            {
+                int vk = c >= 'a' && c <= 'z' ? c - 32 : c;
+                _sender.Send(new RemoteInputEvent { Kind = "keydown", Key = c.ToString(), KeyCode = vk, Modifiers = Mods(), TargetIndex = _targetIndex });
+                _sender.Send(new RemoteInputEvent { Kind = "keyup", Key = c.ToString(), KeyCode = vk, Modifiers = Mods(), TargetIndex = _targetIndex });
+            }
+            e.Handled = true;
+        }
+
+        private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (UrlBox.IsKeyboardFocused) return;
+            if (!TryMapSpecial(e.Key, out var key, out var code, out var vk)) return;
+            _sender.Send(new RemoteInputEvent { Kind = "keydown", Key = key, Code = code, KeyCode = vk, Modifiers = Mods(), TargetIndex = _targetIndex });
+            e.Handled = true;
+        }
+
+        private void OnPreviewKeyUp(object sender, KeyEventArgs e)
+        {
+            if (UrlBox.IsKeyboardFocused) return;
+            if (!TryMapSpecial(e.Key, out var key, out var code, out var vk)) return;
+            _sender.Send(new RemoteInputEvent { Kind = "keyup", Key = key, Code = code, KeyCode = vk, Modifiers = Mods(), TargetIndex = _targetIndex });
+            e.Handled = true;
+        }
+
+        /// <summary>Mapeia teclas NÃO imprimíveis (as imprimíveis vão por OnPreviewTextInput).</summary>
+        private static bool TryMapSpecial(Key k, out string key, out string code, out int vk)
+        {
+            (key, code, vk) = k switch
+            {
+                Key.Enter => ("Enter", "Enter", 13),
+                Key.Back => ("Backspace", "Backspace", 8),
+                Key.Tab => ("Tab", "Tab", 9),
+                Key.Delete => ("Delete", "Delete", 46),
+                Key.Escape => ("Escape", "Escape", 27),
+                Key.Left => ("ArrowLeft", "ArrowLeft", 37),
+                Key.Up => ("ArrowUp", "ArrowUp", 38),
+                Key.Right => ("ArrowRight", "ArrowRight", 39),
+                Key.Down => ("ArrowDown", "ArrowDown", 40),
+                Key.Home => ("Home", "Home", 36),
+                Key.End => ("End", "End", 35),
+                Key.PageUp => ("PageUp", "PageUp", 33),
+                Key.Next => ("PageDown", "PageDown", 34),
+                _ => (string.Empty, string.Empty, 0),
+            };
+            return vk != 0;
+        }
+
+        private static int Mods()
+        {
+            var m = Keyboard.Modifiers;
+            int r = 0;
+            if (m.HasFlag(ModifierKeys.Alt)) r |= 1;
+            if (m.HasFlag(ModifierKeys.Control)) r |= 2;
+            if (m.HasFlag(ModifierKeys.Windows)) r |= 4;
+            if (m.HasFlag(ModifierKeys.Shift)) r |= 8;
+            return r;
+        }
+
+        // --------------------------------------------------------------- Navegação (URL)
 
         private void OnUrlKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
-            {
-                Go();
-                e.Handled = true;
-            }
+            if (e.Key == Key.Enter) { Go(); e.Handled = true; }
         }
 
         private void OnGo(object sender, RoutedEventArgs e) => Go();
@@ -209,27 +288,10 @@ namespace VideoWall.Views
                 Hint.Text = "Digite um endereço válido (ex.: www.youtube.com).";
                 return;
             }
-
             UrlBox.Text = url;
-            // Só navega o espelho; o terminal é sincronizado pelo SourceChanged
-            // (ForwardNavigation), cobrindo também cliques e redirecionamentos.
-            Web.CoreWebView2?.Navigate(url);
-        }
-
-        private string? _lastNavSent;
-
-        /// <summary>Envia ao terminal a URL atual da página controlada (sem repetir).</summary>
-        private void ForwardNavigation(string? url)
-        {
-            if (string.IsNullOrWhiteSpace(url) ||
-                !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            if (string.Equals(url, _lastNavSent, StringComparison.OrdinalIgnoreCase))
-                return;
-
-            _lastNavSent = url;
+            // Navega a célula NO TERMINAL; o espelho mostra o resultado.
             _sender.Send(new RemoteInputEvent { Kind = "nav", Url = url, TargetIndex = _targetIndex });
+            DrawOverlay.Focus();
         }
 
         private void SetLive(bool live)
@@ -240,15 +302,14 @@ namespace VideoWall.Views
             LiveLabel.Opacity = live ? 1 : 0.5;
         }
 
-        // ----------------------------------------------------------------------------
-        // Barra de apresentação: proporção do espelho, ferramentas, cores, zoom, marcação
-        // ----------------------------------------------------------------------------
+        // --------------------------------------------- Barra: proporção, ferramentas, zoom
 
         private string _tool = "cursor";
         private string _colorHex = "#EF4444";
+        private bool _drawing;
 
-        /// <summary>Mantém o espelho com a MESMA proporção da célula (letterbox), para que
-        /// as coordenadas (cliques e marcações) mapeiem exatamente no terminal.</summary>
+        /// <summary>Mantém o espelho na MESMA proporção da célula (letterbox), para as
+        /// coordenadas (cliques e marcações) mapearem exatamente no terminal.</summary>
         private void OnMirrorHostSizeChanged(object sender, SizeChangedEventArgs e)
         {
             double availW = MirrorHost.ActualWidth, availH = MirrorHost.ActualHeight;
@@ -259,7 +320,6 @@ namespace VideoWall.Views
             if (h > availH) { h = availH; w = availH * _aspect; }
             AspectBox.Width = w;
             AspectBox.Height = h;
-            ApplyFitZoom();
         }
 
         private void OnToolClick(object sender, RoutedEventArgs e)
@@ -268,50 +328,17 @@ namespace VideoWall.Views
                 SetTool(tool);
         }
 
-        private async void SetTool(string tool)
+        private void SetTool(string tool)
         {
             _tool = tool;
             HighlightTool();
-
-            if (tool == "cursor")
-            {
-                DrawOverlay.Visibility = Visibility.Collapsed;
-                Snapshot.Visibility = Visibility.Collapsed;
-                Web.Visibility = Visibility.Visible;
-                return;
-            }
-
-            // Congela a vista atual (snapshot) para desenhar por cima — o WebView2, por ser
-            // uma "janela" do Windows, esconderia qualquer desenho colocado sobre ele.
-            try
-            {
-                if (Web.CoreWebView2 != null)
-                {
-                    using var ms = new MemoryStream();
-                    await Web.CoreWebView2.CapturePreviewAsync(
-                        CoreWebView2CapturePreviewImageFormat.Png, ms);
-                    ms.Position = 0;
-                    var bmp = new BitmapImage();
-                    bmp.BeginInit();
-                    bmp.CacheOption = BitmapCacheOption.OnLoad;
-                    bmp.StreamSource = ms;
-                    bmp.EndInit();
-                    bmp.Freeze();
-                    Snapshot.Source = bmp;
-                }
-            }
-            catch { /* sem snapshot: desenha sobre fundo escuro mesmo assim */ }
-
-            Web.Visibility = Visibility.Collapsed;
-            Snapshot.Visibility = Visibility.Visible;
-            DrawOverlay.Visibility = Visibility.Visible;
-            DrawOverlay.Cursor = Cursors.Cross;
+            DrawOverlay.Cursor = tool == "cursor" ? Cursors.Arrow : Cursors.Cross;
         }
 
         private void HighlightTool()
         {
-            var active = (Brush)new BrushConverter().ConvertFromString("#3D3416")!;
-            var idle = (Brush)new BrushConverter().ConvertFromString("#1B1D22")!;
+            var active = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#3D3416")!;
+            var idle = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1B1D22")!;
             ToolCursor.Background = _tool == "cursor" ? active : idle;
             ToolPen.Background = _tool == "pen" ? active : idle;
             ToolArrow.Background = _tool == "arrow" ? active : idle;
@@ -344,158 +371,28 @@ namespace VideoWall.Views
         {
             _userZoom = Math.Clamp(zoom, 0.5, 3.0);
             ZoomLabel.Text = $"{Math.Round(_userZoom * 100)}%";
-            ApplyFitZoom();
-            _sender.Send(new RemoteInputEvent
-            {
-                Kind = "zoom",
-                Zoom = _baseZoom * _userZoom,
-                TargetIndex = _targetIndex,
-            });
+            // Zoom é aplicado NO TERMINAL; o espelho reflete a mudança no próximo frame.
+            _sender.Send(new RemoteInputEvent { Kind = "zoom", Zoom = _baseZoom * _userZoom, TargetIndex = _targetIndex });
         }
 
         private void OnClearAnnotations(object sender, RoutedEventArgs e)
         {
-            DrawOverlay.Children.Clear();
             _sender.Send(new RemoteInputEvent { Kind = "annot-clear", TargetIndex = _targetIndex });
         }
 
-        // ---- Desenho local (espelhado no terminal) ----
-
-        private bool _drawing;
-        private Polyline? _localPen;
-        private Polyline? _localArrow;
-        private Rectangle? _localRect;
-        private Point _localStart;
-
-        private void OnDrawDown(object sender, MouseButtonEventArgs e)
-        {
-            if (_tool == "cursor")
-                return;
-            _drawing = true;
-            DrawOverlay.CaptureMouse();
-            _localStart = e.GetPosition(DrawOverlay);
-            CreateLocalShape(_localStart);
-            SendAnnot("annot-start", _localStart);
-            e.Handled = true;
-        }
-
-        private void OnDrawMove(object sender, MouseEventArgs e)
-        {
-            if (!_drawing)
-                return;
-            var p = e.GetPosition(DrawOverlay);
-            UpdateLocalShape(p);
-            SendAnnot("annot-point", p);
-        }
-
-        private void OnDrawUp(object sender, MouseButtonEventArgs e)
-        {
-            if (!_drawing)
-                return;
-            _drawing = false;
-            DrawOverlay.ReleaseMouseCapture();
-            var p = e.GetPosition(DrawOverlay);
-            UpdateLocalShape(p);
-            SendAnnot("annot-end", p);
-            _localPen = _localArrow = null;
-            _localRect = null;
-        }
-
+        /// <summary>Envia a marcação ao terminal (que desenha via SVG); o espelho a mostra.</summary>
         private void SendAnnot(string kind, Point p)
         {
-            double w = DrawOverlay.ActualWidth, h = DrawOverlay.ActualHeight;
+            var n = Norm(p);
             _sender.Send(new RemoteInputEvent
             {
                 Kind = kind,
-                X = w > 0 ? p.X / w : 0,
-                Y = h > 0 ? p.Y / h : 0,
+                X = n.X,
+                Y = n.Y,
                 TargetIndex = _targetIndex,
                 ShapeType = _tool,
                 ColorHex = _colorHex,
             });
-        }
-
-        private void CreateLocalShape(Point p)
-        {
-            var brush = ColorBrush(_colorHex);
-            if (_tool == "rect")
-            {
-                _localRect = new Rectangle { Stroke = brush, StrokeThickness = 3 };
-                Canvas.SetLeft(_localRect, p.X);
-                Canvas.SetTop(_localRect, p.Y);
-                DrawOverlay.Children.Add(_localRect);
-            }
-            else if (_tool == "arrow")
-            {
-                _localArrow = NewLocalStroke(brush);
-                DrawOverlay.Children.Add(_localArrow);
-            }
-            else if (_tool == "marker")
-            {
-                _localPen = NewLocalStroke(brush);
-                _localPen.StrokeThickness = 18;
-                _localPen.Opacity = 0.4;
-                _localPen.Points.Add(p);
-                DrawOverlay.Children.Add(_localPen);
-            }
-            else
-            {
-                _localPen = NewLocalStroke(brush);
-                _localPen.Points.Add(p);
-                DrawOverlay.Children.Add(_localPen);
-            }
-        }
-
-        private void UpdateLocalShape(Point p)
-        {
-            if (_tool == "rect" && _localRect != null)
-            {
-                Canvas.SetLeft(_localRect, Math.Min(_localStart.X, p.X));
-                Canvas.SetTop(_localRect, Math.Min(_localStart.Y, p.Y));
-                _localRect.Width = Math.Abs(p.X - _localStart.X);
-                _localRect.Height = Math.Abs(p.Y - _localStart.Y);
-            }
-            else if (_tool == "arrow" && _localArrow != null)
-            {
-                _localArrow.Points = BuildArrow(_localStart, p);
-            }
-            else
-            {
-                _localPen?.Points.Add(p);
-            }
-        }
-
-        private static Polyline NewLocalStroke(Brush brush) => new()
-        {
-            Stroke = brush,
-            StrokeThickness = 3,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round,
-        };
-
-        private static PointCollection BuildArrow(Point a, Point b)
-        {
-            var pc = new PointCollection { a, b };
-            double dx = b.X - a.X, dy = b.Y - a.Y;
-            double len = Math.Sqrt(dx * dx + dy * dy);
-            if (len >= 1)
-            {
-                double ux = dx / len, uy = dy / len;
-                const double head = 16, wide = 9;
-                double bx = b.X - ux * head, by = b.Y - uy * head;
-                double px = -uy, py = ux;
-                pc.Add(new Point(bx + px * wide, by + py * wide));
-                pc.Add(b);
-                pc.Add(new Point(bx - px * wide, by - py * wide));
-            }
-            return pc;
-        }
-
-        private static Brush ColorBrush(string hex)
-        {
-            try { return (Brush)new BrushConverter().ConvertFromString(hex)!; }
-            catch { return Brushes.Red; }
         }
 
         private void OnClose(object sender, RoutedEventArgs e) => Close();
@@ -505,19 +402,10 @@ namespace VideoWall.Views
             if (_closing) return;
             _closing = true;
 
-            // Fechar encerra SÓ a sessão de controle. NÃO envia nada ao terminal: a tela
-            // continua exibindo o layout (só "Parar tela" interrompe a transmissão).
+            // Fechar encerra SÓ a sessão de controle (espelho + entrada). NÃO mexe na
+            // tela: o terminal continua exibindo o layout (só "Parar tela" interrompe).
+            try { _view.Dispose(); } catch { }
             try { _sender.Dispose(); } catch { }
-            try { Web.Dispose(); } catch { }
-        }
-
-        private static string UserDataFolder()
-        {
-            var folder = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CPE Tecnologia", "VideoWall", "WebView2");
-            Directory.CreateDirectory(folder);
-            return folder;
         }
 
         private static string NormalizeUrl(string text)

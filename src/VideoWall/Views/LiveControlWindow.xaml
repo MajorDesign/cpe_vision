@@ -112,16 +112,19 @@
                 </StackPanel>
             </Border>
 
-            <!-- Espelho da página (mantém a proporção da célula) + camada de desenho -->
+            <!-- Espelho AO VIVO da célula do terminal (imagem) + camada de entrada/desenho.
+                 O controlador mostra exatamente o que está na TV; a entrada vai pro terminal. -->
             <Border Grid.Row="3" Background="#0B1220" BorderBrush="#1F2937" BorderThickness="1">
                 <Grid x:Name="MirrorHost" SizeChanged="OnMirrorHostSizeChanged" ClipToBounds="True">
                     <Grid x:Name="AspectBox" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <wv2:WebView2 x:Name="Web"/>
-                        <!-- Vista congelada (snapshot) usada durante a marcação -->
-                        <Image x:Name="Snapshot" Stretch="Fill" Visibility="Collapsed" IsHitTestVisible="False"/>
-                        <Canvas x:Name="DrawOverlay" Background="Transparent" Visibility="Collapsed"
-                                MouseLeftButtonDown="OnDrawDown" MouseMove="OnDrawMove"
-                                MouseLeftButtonUp="OnDrawUp"/>
+                        <Image x:Name="Mirror" Stretch="Fill"/>
+                        <!-- Superfície de entrada: encaminha mouse ao terminal (cursor) ou
+                             marca (caneta/seta/retângulo). -->
+                        <Canvas x:Name="DrawOverlay" Background="Transparent" Focusable="True"
+                                MouseMove="OnSurfaceMouseMove"
+                                MouseLeftButtonDown="OnSurfaceMouseDown" MouseLeftButtonUp="OnSurfaceMouseUp"
+                                MouseRightButtonDown="OnSurfaceMouseDown" MouseRightButtonUp="OnSurfaceMouseUp"
+                                MouseWheel="OnSurfaceWheel"/>
                     </Grid>
                 </Grid>
             </Border>

@@ -31,6 +31,7 @@ namespace VideoWall.Viewer
         private LiveInputServer? _liveInputServer;
         private ThumbnailServer? _thumbnailServer;
         private LiveStateServer? _liveStateServer;
+        private LiveViewServer? _liveViewServer;
 
         // Uma "vaga" por fonte do layout, na MESMA ordem em que o controlador as envia.
         // _slotUrls guarda a última URL PROJETADA de cada navegador (não a navegação ao
@@ -96,6 +97,10 @@ namespace VideoWall.Viewer
             // vivo reabrir continuando de onde estava.
             _liveStateServer = new LiveStateServer(GetCellStateAsync);
             try { _liveStateServer.Start(); } catch { /* porta ocupada */ }
+
+            // Transmite os frames de uma célula para o controle ao vivo (espelho exato da TV).
+            _liveViewServer = new LiveViewServer(CaptureCellJpeg);
+            try { _liveViewServer.Start(); } catch { /* porta ocupada */ }
 
             // A atualização agora é pelo GitHub, verificada no pré-load (SplashWindow).
         }
@@ -709,6 +714,67 @@ namespace VideoWall.Viewer
             }
         }
 
+        /// <summary>
+        /// Captura SÓ a região de uma célula (na tela) e devolve um JPEG — usado pelo
+        /// streaming do controle ao vivo, para o controlador exibir o espelho exato da TV.
+        /// </summary>
+        private byte[]? CaptureCellJpeg(int index)
+        {
+            try { return Dispatcher.Invoke(() => CaptureCellJpegCore(index)); }
+            catch { return null; }
+        }
+
+        private byte[]? CaptureCellJpegCore(int index)
+        {
+            if (index < 0 || index >= _slots.Count || _slots[index] is not FrameworkElement el)
+                return null;
+
+            double cw = el.ActualWidth, ch = el.ActualHeight;
+            if (cw <= 0 || ch <= 0)
+                return null;
+
+            // Retângulo da célula em pixels físicos da tela.
+            Point tl, br;
+            try { tl = el.PointToScreen(new Point(0, 0)); br = el.PointToScreen(new Point(cw, ch)); }
+            catch { return null; }
+
+            int x = (int)Math.Round(tl.X), y = (int)Math.Round(tl.Y);
+            int w = (int)Math.Round(br.X - tl.X), h = (int)Math.Round(br.Y - tl.Y);
+            if (w <= 0 || h <= 0)
+                return null;
+
+            IntPtr hScreen = GetDC(IntPtr.Zero);
+            IntPtr hDc = CreateCompatibleDC(hScreen);
+            IntPtr hBmp = CreateCompatibleBitmap(hScreen, w, h);
+            IntPtr old = SelectObject(hDc, hBmp);
+            try
+            {
+                BitBlt(hDc, 0, 0, w, h, hScreen, x, y, SRCCOPY | CAPTUREBLT);
+                var source = Imaging.CreateBitmapSourceFromHBitmap(
+                    hBmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+
+                // Para controle ao vivo: mais nítido que a miniatura (largura ~1280).
+                double scale = source.PixelWidth > 1280 ? 1280.0 / source.PixelWidth : 1.0;
+                BitmapSource frame = scale < 1.0
+                    ? new TransformedBitmap(source, new ScaleTransform(scale, scale))
+                    : source;
+                frame.Freeze();
+
+                var encoder = new JpegBitmapEncoder { QualityLevel = 62 };
+                encoder.Frames.Add(BitmapFrame.Create(frame));
+                using var ms = new MemoryStream();
+                encoder.Save(ms);
+                return ms.ToArray();
+            }
+            finally
+            {
+                SelectObject(hDc, old);
+                DeleteObject(hBmp);
+                DeleteDC(hDc);
+                ReleaseDC(IntPtr.Zero, hScreen);
+            }
+        }
+
         private const int SM_CXSCREEN = 0;
         private const int SM_CYSCREEN = 1;
         private const int SRCCOPY = 0x00CC0020;
@@ -731,6 +797,7 @@ namespace VideoWall.Viewer
             _liveInputServer?.Dispose();
             _thumbnailServer?.Dispose();
             _liveStateServer?.Dispose();
+            _liveViewServer?.Dispose();
             _beacon?.Dispose();
         }
 
