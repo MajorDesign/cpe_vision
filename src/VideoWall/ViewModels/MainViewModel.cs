@@ -828,11 +828,85 @@ namespace VideoWall.ViewModels
                 {
                     var existing = RemoteScreens.FirstOrDefault(s => s.Id == viewer.Id);
                     if (existing == null)
-                        RemoteScreens.Add(new RemoteScreen(viewer));
+                    {
+                        var screen = new RemoteScreen(viewer);
+                        RemoteScreens.Add(screen);
+                        // Tela recém-descoberta (ex.: controlador acabou de abrir): pergunta
+                        // ao terminal o que ele está exibindo e reconstrói a parede.
+                        FetchRemoteLayout(screen);
+                    }
                     else
                         existing.UpdateInfo(viewer);
                 }
             });
+        }
+
+        /// <summary>
+        /// Pergunta ao terminal o layout que ele está exibindo e o reconstrói em
+        /// <see cref="RemoteScreen.Layout"/> — para o controlador, ao reabrir, continuar
+        /// editando/controlando o que já está na tela (o terminal é a fonte da verdade).
+        /// </summary>
+        private async void FetchRemoteLayout(RemoteScreen screen)
+        {
+            var json = await LayoutQueryClient.RequestAsync(screen.IpAddress);
+            if (string.IsNullOrWhiteSpace(json))
+                return;
+
+            List<ScreenSource>? sources;
+            try { sources = System.Text.Json.JsonSerializer.Deserialize<List<ScreenSource>>(json); }
+            catch { return; }
+            if (sources == null || sources.Count == 0)
+                return;
+
+            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+            {
+                // Não sobrescreve se já há layout (ex.: usuário começou a editar).
+                if (screen.Layout.Count > 0)
+                    return;
+
+                foreach (var s in sources)
+                {
+                    var el = SourceToElement(s);
+                    if (el != null)
+                        screen.Layout.Add(el);
+                }
+
+                // Se essa tela já está selecionada e a edição está vazia, carrega na parede.
+                if (ReferenceEquals(screen, SelectedScreen) && Elements.Count == 0)
+                    foreach (var el in screen.Layout)
+                        Elements.Add(el.Clone());
+            });
+        }
+
+        /// <summary>Converte uma fonte da rede (normalizada) de volta para um elemento da parede.</summary>
+        private static WallElement? SourceToElement(ScreenSource s)
+        {
+            WallElement? el = s.Kind switch
+            {
+                ScreenSource.Browser => new BrowserElement
+                {
+                    Url = string.IsNullOrWhiteSpace(s.Url) ? "https://" : s.Url!,
+                    ZoomFactor = s.Zoom <= 0 ? 1.0 : s.Zoom,
+                    IsOverlay = s.Overlay,
+                },
+                ScreenSource.Color => new ColorElement { ColorHex = s.ColorHex ?? "#F2B705" },
+                ScreenSource.Text2 => new TextElement
+                {
+                    Text = s.Text ?? string.Empty,
+                    FontSize = s.FontSize,
+                    ForegroundHex = s.ForegroundHex ?? "#FFFFFF",
+                },
+                _ => null,
+            };
+            if (el == null)
+                return null;
+
+            el.X = s.X * RemoteScreenWidth;
+            el.Y = s.Y * RemoteScreenHeight;
+            el.Width = Math.Max(1, s.Width * RemoteScreenWidth);
+            el.Height = Math.Max(1, s.Height * RemoteScreenHeight);
+            el.ZIndex = s.ZIndex;
+            return el;
         }
 
         private async void SendUrlToScreen()

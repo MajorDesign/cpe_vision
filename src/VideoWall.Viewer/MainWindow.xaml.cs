@@ -32,6 +32,10 @@ namespace VideoWall.Viewer
         private ThumbnailServer? _thumbnailServer;
         private LiveStateServer? _liveStateServer;
         private LiveViewServer? _liveViewServer;
+        private LayoutQueryServer? _layoutQueryServer;
+
+        // Último layout aplicado (para o controlador reconstruir a parede ao reabrir).
+        private IReadOnlyList<ScreenSource>? _currentSources;
 
         // Uma "vaga" por fonte do layout, na MESMA ordem em que o controlador as envia.
         // _slotUrls guarda a última URL PROJETADA de cada navegador (não a navegação ao
@@ -102,6 +106,11 @@ namespace VideoWall.Viewer
             _liveViewServer = new LiveViewServer(CaptureCellJpeg);
             try { _liveViewServer.Start(); } catch { /* porta ocupada */ }
 
+            // Responde o layout atual (fontes + URLs ao vivo) para o controlador reconstruir
+            // a parede ao reabrir — o terminal é a fonte da verdade.
+            _layoutQueryServer = new LayoutQueryServer(GetCurrentLayoutAsync);
+            try { _layoutQueryServer.Start(); } catch { /* porta ocupada */ }
+
             // A atualização agora é pelo GitHub, verificada no pré-load (SplashWindow).
         }
 
@@ -142,6 +151,7 @@ namespace VideoWall.Viewer
 
         private void ApplyLayout(IReadOnlyList<ScreenSource> sources)
         {
+            _currentSources = sources; // guarda para a consulta de layout (reabrir controlador)
             double w = Surface.ActualWidth > 0 ? Surface.ActualWidth : ActualWidth;
             double h = Surface.ActualHeight > 0 ? Surface.ActualHeight : ActualHeight;
             if (w <= 0) w = SystemParameters.PrimaryScreenWidth;
@@ -407,6 +417,7 @@ namespace VideoWall.Viewer
             Surface.Children.Clear();
             _slots.Clear();
             _slotUrls.Clear();
+            _currentSources = null;
         }
 
         // ----------------------------------------------------------------------------
@@ -522,6 +533,55 @@ namespace VideoWall.Viewer
                     catch { /* sem rolagem acessível */ }
 
                     tcs.SetResult(JsonSerializer.Serialize(new CellState { Url = url, ScrollX = sx, ScrollY = sy }));
+                }
+                catch { tcs.SetResult(null); }
+            });
+            return tcs.Task;
+        }
+
+        /// <summary>
+        /// Devolve (JSON, lista de ScreenSource) o layout ATUAL da tela — com a URL AO VIVO
+        /// de cada navegador — para o controlador reconstruir a parede ao reabrir.
+        /// </summary>
+        private Task<string?> GetCurrentLayoutAsync()
+        {
+            var tcs = new TaskCompletionSource<string?>();
+            Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    if (_currentSources == null || _currentSources.Count == 0)
+                    {
+                        tcs.SetResult(null);
+                        return;
+                    }
+
+                    var list = new List<ScreenSource>(_currentSources.Count);
+                    for (int i = 0; i < _currentSources.Count; i++)
+                    {
+                        var s = _currentSources[i];
+                        var copy = new ScreenSource
+                        {
+                            Kind = s.Kind, X = s.X, Y = s.Y, Width = s.Width, Height = s.Height,
+                            ZIndex = s.ZIndex, Url = s.Url, Zoom = s.Zoom, Overlay = s.Overlay,
+                            ColorHex = s.ColorHex, Text = s.Text, FontSize = s.FontSize,
+                            ForegroundHex = s.ForegroundHex,
+                        };
+
+                        // URL AO VIVO do navegador (após cliques/login/navegação).
+                        if (s.Kind == ScreenSource.Browser && i < _slots.Count &&
+                            _slots[i] is WebView2 web && web.CoreWebView2 is { } core)
+                        {
+                            var live = core.Source;
+                            if (!string.IsNullOrWhiteSpace(live) &&
+                                live.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                copy.Url = live;
+                        }
+
+                        list.Add(copy);
+                    }
+
+                    tcs.SetResult(JsonSerializer.Serialize(list));
                 }
                 catch { tcs.SetResult(null); }
             });
@@ -798,6 +858,7 @@ namespace VideoWall.Viewer
             _thumbnailServer?.Dispose();
             _liveStateServer?.Dispose();
             _liveViewServer?.Dispose();
+            _layoutQueryServer?.Dispose();
             _beacon?.Dispose();
         }
 
