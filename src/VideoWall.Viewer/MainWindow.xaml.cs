@@ -81,6 +81,7 @@ namespace VideoWall.Viewer
                 Name = machine,
                 IpAddress = ip,
                 ControlPort = ScreenCommand.DefaultPort,
+                HardwareOverlay = TerminalSettings.HardwareVideoOverlay,
             };
             _beacon = new UdpBeacon(info);
             _beacon.Start();

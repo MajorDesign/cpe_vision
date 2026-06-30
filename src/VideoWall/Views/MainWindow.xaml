@@ -99,7 +99,7 @@
                     <Button Content="🔄  Atualizar terminal" Style="{StaticResource SubtleButton}"
                             Command="{Binding RestartScreenCommand}"
                             ToolTip="Reinicia o terminal selecionado — ao reabrir ele busca e instala a versão nova (sem ir até o mini-PC)"/>
-                    <Button Content="🎬  Overlay de vídeo (HW)" Style="{StaticResource SubtleButton}"
+                    <Button Content="{Binding OverlayStatus}" Style="{StaticResource SubtleButton}"
                             Command="{Binding ToggleOverlayCommand}"
                             ToolTip="Liga/desliga o overlay de vídeo por hardware no terminal (reinicia). LIGADO alivia a GPU quando há dashboard pesado; se o vídeo ficar preto, clique de novo para desligar."/>
 

@@ -23,6 +23,10 @@ namespace VideoWall.Network
         /// <summary>Porta TCP para comandos (reservada para a etapa de controle).</summary>
         public int ControlPort { get; set; }
 
+        /// <summary>Se o overlay de vídeo por hardware está LIGADO neste terminal
+        /// (para o controlador mostrar o estado no botão).</summary>
+        public bool HardwareOverlay { get; set; }
+
         /// <summary>Momento do último anúncio recebido (preenchido pelo listener).</summary>
         [JsonIgnore]
         public DateTime LastSeenUtc { get; set; }

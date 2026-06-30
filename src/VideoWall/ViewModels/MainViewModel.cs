@@ -110,6 +110,7 @@ namespace VideoWall.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(EditingTargetLabel));
                 OnPropertyChanged(nameof(HasScreenSelected));
+                OnPropertyChanged(nameof(OverlayStatus));
                 RebuildWallGeometry();
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -117,6 +118,12 @@ namespace VideoWall.ViewModels
 
         /// <summary>Verdadeiro quando há uma tela de rede selecionada.</summary>
         public bool HasScreenSelected => SelectedScreen != null;
+
+        /// <summary>Texto do botão de overlay, refletindo o estado do terminal selecionado.</summary>
+        public string OverlayStatus =>
+            SelectedScreen == null ? "🎬  Overlay de vídeo (HW)"
+            : SelectedScreen.OverlayOn ? "🎬  Overlay HW: LIGADO (clique p/ desligar)"
+            : "🎬  Overlay HW: desligado (clique p/ ligar)";
 
         /// <summary>Rótulo do alvo de edição (a tela de rede selecionada).</summary>
         public string EditingTargetLabel =>
@@ -842,6 +849,9 @@ namespace VideoWall.ViewModels
                     else
                         existing.UpdateInfo(viewer);
                 }
+
+                // Atualiza o texto do botão de overlay (estado do terminal selecionado).
+                OnPropertyChanged(nameof(OverlayStatus));
             });
         }
 

@@ -24,6 +24,9 @@ namespace VideoWall.ViewModels
         public string IpAddress => Info.IpAddress;
         public int ControlPort => Info.ControlPort;
 
+        /// <summary>Overlay de vídeo por hardware ligado neste terminal (vindo do anúncio).</summary>
+        public bool OverlayOn => Info.HardwareOverlay;
+
         /// <summary>Layout atualmente transmitido (coords em tela 16:9, p/ a miniatura).</summary>
         public ObservableCollection<WallElement> Layout { get; } = new();
 
@@ -41,6 +44,7 @@ namespace VideoWall.ViewModels
             Info = info;
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(IpAddress));
+            OnPropertyChanged(nameof(OverlayOn));
         }
 
         // Exibido em ComboBox/listas (evita aparecer o nome do tipo).
