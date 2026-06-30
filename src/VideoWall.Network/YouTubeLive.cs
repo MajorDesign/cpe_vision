@@ -56,11 +56,22 @@ namespace VideoWall.Network
       'top:0!important;left:0!important;object-fit:contain!important}';
     (document.head || document.documentElement).appendChild(s);
   }
+  var qualityFixed = false;
   function go(){
     try {
       injectStyle();
       var v = document.querySelector('video');
       if (v) { v.muted = true; if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); } }
+      // Limita a qualidade (uma vez) para aliviar a GPU do terminal quando há um
+      // dashboard pesado na parede — sem isso a live concorre e fica bufferizando.
+      if (!qualityFixed) {
+        var mp = document.getElementById('movie_player');
+        if (mp) {
+          try { if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('hd720', 'hd720'); } catch(_){}
+          try { if (mp.setPlaybackQuality) mp.setPlaybackQuality('hd720'); } catch(_){}
+          qualityFixed = true;
+        }
+      }
       ['ytd-mealbar-promo-renderer','ytmusic-mealbar-promo-renderer','ytd-popup-container tp-yt-paper-dialog']
         .forEach(function(s){ document.querySelectorAll(s).forEach(function(e){ try{ e.remove(); }catch(_){} }); });
       document.querySelectorAll('button, tp-yt-paper-button, yt-button-shape button').forEach(function(b){
