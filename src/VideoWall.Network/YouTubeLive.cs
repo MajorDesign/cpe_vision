@@ -67,8 +67,10 @@ namespace VideoWall.Network
       if (!qualityFixed) {
         var mp = document.getElementById('movie_player');
         if (mp) {
-          try { if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('hd720', 'hd720'); } catch(_){}
-          try { if (mp.setPlaybackQuality) mp.setPlaybackQuality('hd720'); } catch(_){}
+          // 480p ('large'): bem mais leve que 720p quando há um dashboard pesado na
+          // parede disputando a GPU. Numa miniatura (PiP) a diferença é imperceptível.
+          try { if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('large', 'large'); } catch(_){}
+          try { if (mp.setPlaybackQuality) mp.setPlaybackQuality('large'); } catch(_){}
           qualityFixed = true;
         }
       }

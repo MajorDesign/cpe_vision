@@ -142,7 +142,29 @@ namespace VideoWall.Viewer
                     Surface.Visibility = Visibility.Collapsed;
                     IdlePanel.Visibility = Visibility.Visible;
                     break;
+
+                case ScreenCommand.Restart:
+                    RestartSelf();
+                    break;
             }
+        }
+
+        /// <summary>Reabre o terminal: a nova instância passa pelo preload e busca a versão
+        /// nova no GitHub (permite atualizar terminais 24/7 pelo controlador).</summary>
+        private void RestartSelf()
+        {
+            try
+            {
+                var exe = Environment.ProcessPath ??
+                          System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exe,
+                    UseShellExecute = true,
+                });
+            }
+            catch { /* não conseguiu relançar: ainda assim encerra */ }
+            Application.Current.Shutdown();
         }
 
         // ----------------------------------------------------------------------------

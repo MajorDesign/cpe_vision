@@ -96,6 +96,9 @@
                             Click="LiveControl_Click"
                             IsEnabled="{Binding HasScreenSelected}"
                             ToolTip="Controle o navegador do terminal em tempo real (rolagem, cliques, arraste, teclado)"/>
+                    <Button Content="🔄  Atualizar terminal" Style="{StaticResource SubtleButton}"
+                            Command="{Binding RestartScreenCommand}"
+                            ToolTip="Reinicia o terminal selecionado — ao reabrir ele busca e instala a versão nova (sem ir até o mini-PC)"/>
 
                     <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
 

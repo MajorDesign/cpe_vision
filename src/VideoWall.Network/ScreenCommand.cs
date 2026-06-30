@@ -26,6 +26,10 @@ namespace VideoWall.Network
         /// <summary>Encerra o modo "controle ao vivo".</summary>
         public const string LiveStop = "live-stop";
 
+        /// <summary>Reinicia o terminal (ele reabre pelo preload e busca a versão nova) —
+        /// permite atualizar terminais 24/7 pelo controlador, sem ir até cada mini-PC.</summary>
+        public const string Restart = "restart";
+
         /// <summary>Porta TCP padrão do canal de comando dos terminais.</summary>
         public const int DefaultPort = 48011;
     }

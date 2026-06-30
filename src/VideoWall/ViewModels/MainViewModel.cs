@@ -572,6 +572,7 @@ namespace VideoWall.ViewModels
         public ICommand SendUrlToScreenCommand { get; }
         public ICommand SendLayoutToScreenCommand { get; }
         public ICommand ClearScreenCommand { get; }
+        public ICommand RestartScreenCommand { get; }
         public ICommand RemoveSelectedCommand { get; }
         public ICommand BringToFrontCommand { get; }
         public ICommand SendToBackCommand { get; }
@@ -633,6 +634,7 @@ namespace VideoWall.ViewModels
             SendLayoutToScreenCommand = new RelayCommand(SendLayoutToScreen,
                 () => SelectedScreen != null && Elements.Count > 0);
             ClearScreenCommand = new RelayCommand(ClearScreen, () => SelectedScreen != null);
+            RestartScreenCommand = new RelayCommand(RestartScreen, () => SelectedScreen != null);
             RemoveSelectedCommand = new RelayCommand(RemoveSelected, () => SelectedElement != null);
             BringToFrontCommand = new RelayCommand(BringToFront, () => SelectedElement != null);
             SendToBackCommand = new RelayCommand(SendToBack, () => SelectedElement != null);
@@ -1021,6 +1023,29 @@ namespace VideoWall.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Falha ao limpar {screen.Name}: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Manda o terminal reiniciar — ao reabrir, o preload busca e instala a versão
+        /// nova no GitHub. Resolve o caso do terminal 24/7 que não pega atualização
+        /// (só verifica ao iniciar), sem precisar ir até o mini-PC.
+        /// </summary>
+        private async void RestartScreen()
+        {
+            var screen = SelectedScreen;
+            if (screen == null)
+                return;
+
+            try
+            {
+                await CommandSender.SendAsync(screen.IpAddress, screen.ControlPort,
+                    new ScreenCommand { Type = ScreenCommand.Restart });
+                StatusMessage = $"Reiniciando {screen.Name}… (atualiza ao reabrir)";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Falha ao reiniciar {screen.Name}: {ex.Message}";
             }
         }
 
