@@ -24,6 +24,7 @@ namespace VideoWall.Viewer
     {
         private readonly WebView2 _web;
         private readonly DispatcherTimer _fullscreenTimer;
+        private int _fsAttempts;
         private string? _url;
 
         public OverlayWindow(Window owner)
@@ -76,11 +77,25 @@ namespace VideoWall.Viewer
 
             try
             {
+                // Já em tela cheia: PARA o timer. Ficar reenviando F entraria/sairia da
+                // tela cheia e re-bufferizaria a live (ficava 'sempre carregando').
+                if (core.ContainsFullScreenElement)
+                {
+                    _fullscreenTimer.Stop();
+                    return;
+                }
+
                 var src = core.Source ?? string.Empty;
                 if (src.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) < 0)
                     return;
-                if (core.ContainsFullScreenElement)
+
+                // Limite de tentativas: se não entrar em tela cheia, desiste (o CSS já
+                // esconde o cabeçalho) — evita ficar tentando para sempre.
+                if (_fsAttempts++ >= 6)
+                {
+                    _fullscreenTimer.Stop();
                     return;
+                }
 
                 const string down = "{\"type\":\"keyDown\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
                 const string up = "{\"type\":\"keyUp\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";

@@ -69,13 +69,14 @@ namespace VideoWall.Network
           try { b.click(); } catch(_){}
         }
       });
-      // Faz o player recalcular o tamanho do vídeo para o novo tamanho (janela toda).
-      window.dispatchEvent(new Event('resize'));
+      // NÃO disparar 'resize' aqui: fazê-lo em loop obriga o YouTube a recalcular o
+      // player toda hora e re-bufferizar (a live ficava 'sempre carregando').
     } catch(e){}
   }
   injectStyle();
   document.addEventListener('DOMContentLoaded', injectStyle);
-  setInterval(go, 1000);
+  // Verifica a cada 2s (play + popups). Sem dispatch de resize -> sem re-buffer.
+  setInterval(go, 2000);
 })();";
 
         /// <summary>Indica se o endereço aparenta ser uma live/vídeo do YouTube.</summary>
