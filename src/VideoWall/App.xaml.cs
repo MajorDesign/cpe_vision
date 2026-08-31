@@ -11,6 +11,21 @@ namespace VideoWall
         {
             base.OnStartup(e);
 
+            // Rede de proteção: um erro não tratado fechava o controlador inteiro no meio
+            // da operação (aconteceu ao abrir o seletor de janelas). Aqui ele vira um
+            // aviso e uma linha no log — o operador não perde a parede que estava montando.
+            DispatcherUnhandledException += (_, args) =>
+            {
+                VideoWall.Network.ErrorLog.Write("Erro não tratado no controlador", args.Exception);
+                MessageBox.Show(
+                    $"Ocorreu um erro e a ação foi cancelada.\n\n{args.Exception.Message}\n\n" +
+                    $"Detalhes em:\n{VideoWall.Network.ErrorLog.FilePath}",
+                    "CPE VideoWall", MessageBoxButton.OK, MessageBoxImage.Warning);
+                args.Handled = true;
+            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+                VideoWall.Network.ErrorLog.Write("Erro fatal no controlador", args.ExceptionObject as Exception);
+
             // Pasta de dados do WebView2 em local gravável (LocalAppData) — quando instalado
             // em Arquivos de Programas, a pasta padrão é somente leitura e o WebView2 falha.
             var udf = Path.Combine(

@@ -11,14 +11,26 @@ namespace VideoWall.Views
         public OpenWindowInfo? PickWindow()
         {
             var windows = EnumerateWindows();
+            var dialog = new WindowPickerWindow(windows);
 
-            var dialog = new WindowPickerWindow(windows)
-            {
-                Owner = Application.Current.MainWindow,
-            };
+            var owner = ControllerWindow();
+            if (owner != null && !ReferenceEquals(owner, dialog))
+                dialog.Owner = owner;
 
             return dialog.ShowDialog() == true ? dialog.SelectedWindow : null;
         }
+
+        /// <summary>
+        /// Janela principal do controlador.
+        ///
+        /// NÃO use <c>Application.Current.MainWindow</c> para isto: o app abre pelo
+        /// pré-load, então o WPF elege a SplashWindow como MainWindow e, depois que ela
+        /// fecha, chega a eleger a própria janela recém-criada. Definir uma janela como
+        /// dona de si mesma lança ArgumentException — e, vindo de um clique de botão,
+        /// isso FECHAVA o controlador inteiro.
+        /// </summary>
+        private static Window? ControllerWindow() =>
+            Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault();
 
         public OpenWindowInfo? FindByTitle(string title)
         {
@@ -34,8 +46,9 @@ namespace VideoWall.Views
         private static List<OpenWindowInfo> EnumerateWindows()
         {
             var result = new List<OpenWindowInfo>();
-            IntPtr self = Application.Current.MainWindow != null
-                ? new System.Windows.Interop.WindowInteropHelper(Application.Current.MainWindow).Handle
+            var controller = ControllerWindow();
+            IntPtr self = controller != null
+                ? new System.Windows.Interop.WindowInteropHelper(controller).Handle
                 : IntPtr.Zero;
 
             WindowEnumNative.EnumWindows((hWnd, _) =>

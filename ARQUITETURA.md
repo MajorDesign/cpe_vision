@@ -301,6 +301,14 @@ Argumentos do navegador também são definidos ali, **antes** de qualquer WebVie
 **Autoplay.** O WebView2 bloqueia vídeo sem gesto do usuário; num quiosque não há gesto.
 Resolvido com `--autoplay-policy=no-user-gesture-required`.
 
+**`Application.MainWindow` mente nos dois apps.** Ambos abrem pelo pré-load, então o WPF
+elege a **SplashWindow** como `MainWindow`; quando ela fecha, `MainWindow` vira **nula**,
+e a próxima janela criada é eleita no lugar. Resultado real: `Owner =
+Application.Current.MainWindow` num diálogo recém-criado virava "janela dona de si mesma"
+(ArgumentException) e **fechava o controlador** ao clicar em "+ Aplicativo". Para dono de
+janela, use `this` no code-behind ou procure a janela pelo tipo
+(`Application.Current.Windows.OfType<MainWindow>()`), nunca `MainWindow` direto.
+
 **Terminal "zumbi": verde na rede e surdo.** O anúncio UDP é só ENVIO — não depende de
 porta de escuta. Então um terminal que não conseguiu subir os servidores TCP continua
 aparecendo na lista com bolinha verde enquanto ignora comando, miniatura e consulta de

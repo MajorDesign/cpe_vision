@@ -10,6 +10,17 @@ namespace VideoWall.Viewer
         {
             base.OnStartup(e);
 
+            // Rede de proteção: no terminal, um erro não tratado apaga a TV e ninguém está
+            // lá para reabrir. Registra e SEGUE. Sem caixa de diálogo, de propósito — um
+            // aviso modal ficaria eternamente parado na parede.
+            DispatcherUnhandledException += (_, args) =>
+            {
+                VideoWall.Network.ErrorLog.Write("Erro não tratado no terminal", args.Exception);
+                args.Handled = true;
+            };
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+                VideoWall.Network.ErrorLog.Write("Erro fatal no terminal", args.ExceptionObject as Exception);
+
             // PASTA DE DADOS DO WEBVIEW2 EM LOCAL GRAVÁVEL. O terminal instala em Arquivos
             // de Programas (somente leitura para o quiosque); a pasta padrão do WebView2
             // fica lá e ele FALHA AO INICIAR -> tela preta ("navegador não abre nada").
