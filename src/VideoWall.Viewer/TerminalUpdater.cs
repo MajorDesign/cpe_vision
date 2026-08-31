@@ -37,6 +37,19 @@ namespace VideoWall.Viewer
         /// <summary>Marca criada pela tarefa quando a instalação termina.</summary>
         private static string FlagPath => Path.Combine(UpdateDir, "pronto.flag");
 
+        /// <summary>Última versão que já foi baixada e entregue à tarefa.</summary>
+        private static string AttemptPath => Path.Combine(UpdateDir, "tentativa.txt");
+
+        /// <summary>
+        /// Quanto tempo esperar antes de tentar de novo a MESMA versão.
+        ///
+        /// Uma instalação que falha fecha o terminal; ele reabre, verifica, vê a mesma
+        /// versão nova e baixa os 60 MB outra vez — foi o que aconteceu em campo, oito
+        /// downloads em uma hora e meia. Com uma parede de 8 telas isso vira enxurrada
+        /// na rede. Se a versão não entrou, insistir de imediato não vai fazer entrar.
+        /// </summary>
+        private static readonly TimeSpan RetryAfterFailure = TimeSpan.FromHours(2);
+
         private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
         private readonly ControllerLocator _locator = new();
@@ -99,7 +112,14 @@ namespace VideoWall.Viewer
                 if (source == null || source.Value.Version <= current)
                     return false;
 
+                // Esta versão já foi baixada e entregue há pouco, e mesmo assim ainda
+                // estamos na versão antiga: a instalação não pegou. Baixar de novo agora
+                // só repetiria o ciclo (e os 60 MB).
+                if (RecentlyAttempted(source.Value.Version))
+                    return false;
+
                 await DownloadAsync(source.Value.Url).ConfigureAwait(false);
+                RecordAttempt(source.Value.Version);
                 return StartInstall();
             }
             catch
@@ -145,6 +165,43 @@ namespace VideoWall.Viewer
                 return null;
 
             return (latest.Version, url);
+        }
+
+        /// <summary>Esta versão já foi tentada há pouco tempo?</summary>
+        private static bool RecentlyAttempted(Version version)
+        {
+            try
+            {
+                if (!File.Exists(AttemptPath))
+                    return false;
+
+                var partes = File.ReadAllText(AttemptPath).Split('|');
+                if (partes.Length != 2)
+                    return false;
+
+                if (!Version.TryParse(partes[0].Trim(), out var tentada) || tentada != version)
+                    return false;
+
+                if (!DateTime.TryParse(partes[1].Trim(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var quando))
+                    return false;
+
+                return DateTime.UtcNow - quando < RetryAfterFailure;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void RecordAttempt(Version version)
+        {
+            try
+            {
+                Directory.CreateDirectory(UpdateDir);
+                File.WriteAllText(AttemptPath, $"{version}|{DateTime.UtcNow:O}");
+            }
+            catch { /* sem permissão: no pior caso, tenta de novo mais cedo */ }
         }
 
         private static async Task DownloadAsync(string url)
