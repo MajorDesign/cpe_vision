@@ -79,8 +79,10 @@ Windows já em cache. Histórico é linear na `main`, um commit por versão.
 5. **Nada de bloquear a thread de UI do terminal.** Ela renderiza 4+ navegadores e
    atende 7 servidores TCP; travar significa TV branca. Na `VideoWall.Network`, use
    `ConfigureAwait(false)`.
-6. **Trate erro de rede engolindo a exceção e tentando depois.** O terminal fica ligado
-   24/7 sem ninguém por perto: nenhuma falha de rede pode virar diálogo ou derrubar o app.
+6. **Erro de rede não vira diálogo — mas também não vira silêncio.** O terminal fica
+   ligado 24/7 sem ninguém por perto: engula a exceção **e tente de novo**. `catch {}`
+   sem retentativa já deixou uma tela verde na lista e surda a tudo (ver "terminal
+   zumbi" em [ARQUITETURA.md](ARQUITETURA.md#armadilhas-conhecidas)).
 
 ## Onde mexer para tarefas comuns
 

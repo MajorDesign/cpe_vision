@@ -35,6 +35,10 @@ namespace VideoWall.Viewer
         private LayoutQueryServer? _layoutQueryServer;
         private System.Windows.Threading.DispatcherTimer? _layoutSaveTimer;
 
+        // Servidores que não conseguiram subir (porta ocupada) e seguem sendo tentados.
+        private readonly List<(string Nome, Action Iniciar)> _pendingServers = new();
+        private System.Windows.Threading.DispatcherTimer? _serverRetryTimer;
+
         // Auto-update com o terminal aberto (quiosque 24/7 raramente reinicia).
         private TerminalUpdater? _updater;
         private System.Windows.Threading.DispatcherTimer? _updateTimer;
@@ -93,30 +97,30 @@ namespace VideoWall.Viewer
 
             _commandServer = new CommandServer(ScreenCommand.DefaultPort);
             _commandServer.CommandReceived += cmd => Dispatcher.BeginInvoke(() => ApplyCommand(cmd));
-            try { _commandServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("comandos", () => _commandServer.Start());
 
             // Canal persistente para o "controle ao vivo" (mouse/rolagem/teclado).
             _liveInputServer = new LiveInputServer();
             _liveInputServer.InputReceived += ev => Dispatcher.BeginInvoke(() => InjectInput(ev));
-            try { _liveInputServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("controle ao vivo", () => _liveInputServer.Start());
 
             // Serve a miniatura ao vivo (foto da própria tela) quando o controlador pede.
             _thumbnailServer = new ThumbnailServer(CaptureScreenJpeg);
-            try { _thumbnailServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("miniatura", () => _thumbnailServer.Start());
 
             // Informa o estado atual de cada célula (página + rolagem) para o controle ao
             // vivo reabrir continuando de onde estava.
             _liveStateServer = new LiveStateServer(GetCellStateAsync);
-            try { _liveStateServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("estado da célula", () => _liveStateServer.Start());
 
             // Transmite os frames de uma célula para o controle ao vivo (espelho exato da TV).
             _liveViewServer = new LiveViewServer(CaptureCellJpeg);
-            try { _liveViewServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("espelho de vídeo", () => _liveViewServer.Start());
 
             // Responde o layout atual (fontes + URLs ao vivo) para o controlador reconstruir
             // a parede ao reabrir — o terminal é a fonte da verdade.
             _layoutQueryServer = new LayoutQueryServer(GetCurrentLayoutAsync);
-            try { _layoutQueryServer.Start(); } catch { /* porta ocupada */ }
+            StartServer("layout atual", () => _layoutQueryServer.Start());
 
             // RESTAURA o layout salvo (atualização/overlay/queda de energia): volta exibindo
             // o que estava, com as URLs ao vivo. A sessão/login está na pasta do WebView2,
@@ -189,7 +193,7 @@ namespace VideoWall.Viewer
         }
 
         /// <summary>Reabre o terminal: a nova instância passa pelo preload e busca a versão
-        /// nova no GitHub (permite atualizar terminais 24/7 pelo controlador).</summary>
+        /// nova (permite atualizar terminais 24/7 pelo controlador).</summary>
         private void RestartSelf()
         {
             SaveCurrentLayout(); // garante o estado mais recente (com login/URLs ao vivo)
@@ -197,14 +201,99 @@ namespace VideoWall.Viewer
             {
                 var exe = Environment.ProcessPath ??
                           System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = exe,
-                    UseShellExecute = true,
-                });
+                RelaunchAfterExit(exe);
             }
             catch { /* não conseguiu relançar: ainda assim encerra */ }
             Application.Current.Shutdown();
+        }
+
+        /// <summary>
+        /// Reabre o terminal SÓ DEPOIS que este processo terminar.
+        ///
+        /// Iniciar a instância nova antes de encerrar a atual (como era feito) fazia a
+        /// nova encontrar as SEIS portas ainda ocupadas pela antiga. Como cada servidor
+        /// falhava em silêncio, ela subia sem escutar nada: a tela continuava aparecendo
+        /// na rede — o anúncio é só envio, não depende de porta de escuta — mas não
+        /// respondia a comando, miniatura nem consulta de layout, e só um reinício
+        /// manual no mini-PC resolvia.
+        /// </summary>
+        private static void RelaunchAfterExit(string exe)
+        {
+            string dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CPE Tecnologia", "VideoWall");
+            Directory.CreateDirectory(dir);
+
+            string script = System.IO.Path.Combine(dir, "reiniciar.cmd");
+            int pid = Environment.ProcessId;
+
+            string text =
+                "@echo off\r\n" +
+                ":wait\r\n" +
+                $"tasklist /fi \"PID eq {pid}\" | find \"{pid}\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n" +
+                // Folga para o Windows liberar de fato as portas do processo encerrado.
+                "timeout /t 3 /nobreak >nul\r\n" +
+                $"start \"\" \"{exe}\"\r\n" +
+                "del \"%~f0\"\r\n";
+
+            File.WriteAllText(script, text);
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c \"{script}\"",
+                WorkingDirectory = dir,
+                UseShellExecute = true,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
+            });
+        }
+
+        /// <summary>
+        /// Sobe um servidor do terminal e, se a porta estiver ocupada, INSISTE em vez de
+        /// desistir calado. Um terminal sem servidores é o pior estado possível: aparece
+        /// verde na rede e não obedece a nada. A porta costuma ser liberada em segundos
+        /// (instância anterior encerrando), então a tela se recupera sozinha.
+        /// </summary>
+        private void StartServer(string nome, Action iniciar)
+        {
+            try
+            {
+                iniciar();
+            }
+            catch
+            {
+                _pendingServers.Add((nome, iniciar));
+                EnsureServerRetryTimer();
+            }
+        }
+
+        private void EnsureServerRetryTimer()
+        {
+            if (_serverRetryTimer != null)
+                return;
+
+            _serverRetryTimer = new System.Windows.Threading.DispatcherTimer
+            { Interval = TimeSpan.FromSeconds(5) };
+            _serverRetryTimer.Tick += (_, _) =>
+            {
+                for (int i = _pendingServers.Count - 1; i >= 0; i--)
+                {
+                    try
+                    {
+                        _pendingServers[i].Iniciar();
+                        _pendingServers.RemoveAt(i);
+                    }
+                    catch { /* ainda ocupada: tenta no próximo ciclo */ }
+                }
+
+                if (_pendingServers.Count == 0)
+                {
+                    _serverRetryTimer?.Stop();
+                    _serverRetryTimer = null;
+                }
+            };
+            _serverRetryTimer.Start();
         }
 
         // ----------------------------------------------------------------------------
@@ -950,6 +1039,7 @@ namespace VideoWall.Viewer
             _beacon?.Dispose();
             _updateTimer?.Stop();
             _updater?.Dispose();
+            _serverRetryTimer?.Stop();
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

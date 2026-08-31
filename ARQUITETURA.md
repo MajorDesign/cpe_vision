@@ -301,6 +301,19 @@ Argumentos do navegador também são definidos ali, **antes** de qualquer WebVie
 **Autoplay.** O WebView2 bloqueia vídeo sem gesto do usuário; num quiosque não há gesto.
 Resolvido com `--autoplay-policy=no-user-gesture-required`.
 
+**Terminal "zumbi": verde na rede e surdo.** O anúncio UDP é só ENVIO — não depende de
+porta de escuta. Então um terminal que não conseguiu subir os servidores TCP continua
+aparecendo na lista com bolinha verde enquanto ignora comando, miniatura e consulta de
+layout; do controlador, todas as portas dão **timeout** (não "conexão recusada", porque
+as regras de firewall são por programa: sem ninguém escutando, o pacote é descartado).
+Já aconteceu em campo: `RestartSelf` iniciava a instância nova ANTES de encerrar a
+atual, a nova encontrava as seis portas ocupadas, e cada `Start()` falhava dentro de um
+`catch` vazio. Duas regras vieram daí: o relançamento espera este processo terminar
+(`RelaunchAfterExit`), e falha ao abrir porta **nunca** é engolida — `StartServer`
+insiste a cada 5s até conseguir. Ao diagnosticar uma tela muda, comece perguntando se
+ela ainda anuncia (UDP 48010): anunciando + TCP em timeout = servidores fora do ar,
+não rede.
+
 **Publicação.** O terminal publica como arquivo único; o controlador publica em **pasta**.
 Instância rodando trava o `.exe` e a publicação falha em silêncio — mate os processos e
 limpe `dist\` antes.
