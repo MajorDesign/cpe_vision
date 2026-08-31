@@ -113,7 +113,11 @@ namespace VideoWall.Network
             }
 
             var info = new FileInfo(package.FilePath);
+            // Content-Disposition nomeia o arquivo. Sem isto, baixar pelo navegador
+            // (o caminho manual de recuperação de uma tela) salvava como "setup", sem
+            // extensão, e o Windows não sabia o que fazer com ele.
             string header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n" +
+                            $"Content-Disposition: attachment; filename=\"{info.Name}\"\r\n" +
                             $"Content-Length: {info.Length}\r\nConnection: close\r\n\r\n";
             await stream.WriteAsync(Encoding.ASCII.GetBytes(header)).ConfigureAwait(false);
 
