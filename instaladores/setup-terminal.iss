@@ -122,7 +122,14 @@ end;
   SYSTEM. E ela que permite atualizar um quiosque sem ninguem na frente da TV:
   o terminal roda como usuario comum e nao poderia gravar em Arquivos de
   Programas nem elevar sozinho. O script grava "pronto.flag" ao terminar, que e
-  o sinal para o terminal reabrir. }
+  o sinal para o terminal reabrir.
+
+  A tarefa roda SOZINHA A CADA 5 MINUTOS e sai na hora quando nao ha instalador
+  na pasta de troca. Antes ela so rodava sob demanda ("schtasks /run"), mas o
+  terminal - sem elevacao - nao consegue disparar uma tarefa do SYSTEM: a
+  atualizacao caia no plano B, que executava o instalador direto e ABRIA O PEDIDO
+  DE UAC NA TV. Com o gatilho periodico, o terminal so precisa baixar o arquivo;
+  quem instala e a tarefa, em silencio. }
 procedure RegisterUpdateTask();
 var
   Base, UpdateDir, CmdPath, Script: String;
@@ -145,7 +152,7 @@ begin
     Exit;
 
   Exec(ExpandConstant('{sys}\schtasks.exe'),
-       '/create /f /tn "{#UpdateTask}" /sc ONCE /st 00:00 /ru SYSTEM /rl HIGHEST' +
+       '/create /f /tn "{#UpdateTask}" /sc MINUTE /mo 5 /ru SYSTEM /rl HIGHEST' +
        ' /tr "cmd /c \"' + CmdPath + '\""',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;

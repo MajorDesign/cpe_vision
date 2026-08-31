@@ -42,9 +42,15 @@ Cada terminal verifica **a cada 30 minutos** (com o app aberto) e também no pr�
 2. O central o serve na LAN em `http://<ip-do-central>:48020` (`/version` e `/setup`)
    e se anuncia por broadcast UDP para as telas o localizarem.
 3. Cada **terminal** compara a versão servida com a sua. Sendo mais nova, baixa o
-   instalador para `C:\ProgramData\CPE\VideoWall\update` e dispara a tarefa agendada
-   `CPE VideoWall Update` — que roda como **SYSTEM**, instala em silêncio **sem UAC**
-   e sem ninguém na frente da TV. O script `reabrir.cmd` reabre o terminal ao final.
+   instalador para `C:\ProgramData\CPE\VideoWall\update`. Quem instala é a tarefa
+   agendada `CPE VideoWall Update`, que roda como **SYSTEM a cada 5 minutos**: se houver
+   instalador na pasta, aplica em silêncio, **sem UAC** e sem ninguém na frente da TV;
+   se não houver, sai na hora. O script `reabrir.cmd` reabre o terminal ao final.
+
+   O terminal ainda tenta adiantar a instalação disparando a tarefa, mas **não depende
+   disso** — rodando sem elevação, nem sempre ele consegue acionar uma tarefa do SYSTEM.
+   O terminal **nunca** executa o instalador por conta própria: isso abriria o pedido de
+   UAC na TV, onde não há ninguém para clicar.
 4. O terminal restaura sozinho o layout que estava exibindo (`last-layout.json`),
    já logado nas páginas (a sessão fica na pasta do WebView2).
 

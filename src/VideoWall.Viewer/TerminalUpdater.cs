@@ -37,8 +37,6 @@ namespace VideoWall.Viewer
         /// <summary>Marca criada pela tarefa quando a instalação termina.</summary>
         private static string FlagPath => Path.Combine(UpdateDir, "pronto.flag");
 
-        private const string SilentArgs = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS";
-
         private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
         private readonly ControllerLocator _locator = new();
@@ -144,35 +142,32 @@ namespace VideoWall.Viewer
         }
 
         /// <summary>
-        /// Programa a reabertura (na sessão do usuário) e dispara a tarefa agendada
-        /// que instala como SYSTEM, sem UAC.
+        /// Programa a reabertura (na sessão do usuário) e tenta adiantar a instalação
+        /// disparando a tarefa agendada, que roda como SYSTEM e instala sem UAC.
+        ///
+        /// Se o disparo não for permitido — o terminal roda sem elevação e nem sempre
+        /// consegue acionar uma tarefa do SYSTEM — não há problema: basta o instalador
+        /// estar na pasta de troca, porque a tarefa também roda sozinha a cada 5 minutos.
+        /// O que NÃO se faz aqui é executar o instalador diretamente: isso abriria o
+        /// pedido de UAC na TV, e num quiosque não há ninguém para clicar.
         /// </summary>
+        /// <returns>
+        /// Verdadeiro se a instalação já começou. Falso quando ela ficou pendente para a
+        /// tarefa periódica — aí o terminal segue abrindo normalmente e a troca acontece
+        /// em poucos minutos.
+        /// </returns>
         private bool StartInstall()
         {
-            _installing = true;
+            _installing = true; // o instalador já está baixado: não baixar de novo
             StartReopenWatcher();
 
             if (RunSchtasks($"/run /tn \"{UpdateTaskName}\""))
                 return true;
 
-            // Instalação anterior a 1.39 (sem a tarefa): executa direto. Pode pedir
-            // UAC se o usuário do quiosque não for administrador — a partir da 1.39
-            // a tarefa passa a existir e esse caminho deixa de ser usado.
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = SetupPath,
-                    Arguments = SilentArgs,
-                    UseShellExecute = true,
-                });
-                return true;
-            }
-            catch
-            {
-                _installing = false;
-                return false;
-            }
+            ErrorLog.Write(
+                $"Atualização {SetupName} baixada, mas não foi possível disparar a tarefa " +
+                $"\"{UpdateTaskName}\". A tarefa periódica (5 min) aplicará.", null);
+            return false;
         }
 
         /// <summary>
