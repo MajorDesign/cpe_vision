@@ -10,7 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>..\..\assets\cpe.ico</ApplicationIcon>
     <!-- VersÃ£o do terminal. Suba este nÃºmero antes de publicar uma atualizaÃ§Ã£o. -->
-    <Version>1.51.0</Version>
+    <Version>1.52.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
