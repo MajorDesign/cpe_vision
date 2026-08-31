@@ -193,6 +193,24 @@ recarregamento; sessão de aba, não. Medido: página oculta e reexibida mantém
 Efeito colateral bem-vindo: oculta, a página é limitada pelo Chromium e para de disputar
 GPU — ajuda a live a não engasgar. "Parar tela" descarta tudo, inclusive o estacionamento.
 
+Atenção ao ponto que já falhou uma vez: estacionar precisa acontecer **também quando a
+célula só troca de endereço**. Dois layouts com as células nas mesmas posições é o caso
+comum, e renavegar o mesmo WebView2 destrói a página que sai — foi assim que a rotação
+continuou deslogando mesmo depois de o estacionamento existir.
+
+### Cortina da troca (`CurtainWindow`)
+
+Trocar de layout com várias lives mostrava o bastidor: páginas entrando uma a uma, vídeo
+quebrado, cada quadro assumindo a tela cheia na frente de quem assiste. Agora, quando
+alguma célula precisa carregar do zero, o terminal **baixa uma cortina**, monta a parede
+atrás dela e só revela quando as páginas estão apresentáveis (carregadas e, sendo vídeo,
+já em tela cheia) — com teto de 20s para nunca deixar a parede preta.
+
+A cortina é uma **janela própria, topmost**, pelo mesmo motivo da live: retângulo WPF
+sobre WebView2 é invisível. Como as lives também são topmost, ela reafirma o topo depois
+de montar o layout. Vindo tudo do estacionamento — o normal a partir da 2ª volta da
+rotação — não há o que preparar e a troca é instantânea, sem cortina.
+
 ## 6. Agendamento e rotação
 
 `ScheduleService` guarda entradas com horário, dias, layout **e tela alvo**. Ao disparar,

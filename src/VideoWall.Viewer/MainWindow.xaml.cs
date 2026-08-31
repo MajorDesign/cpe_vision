@@ -47,6 +47,12 @@ namespace VideoWall.Viewer
         /// </summary>
         private const int MaxParkedPages = 8;
 
+        // Cortina da troca de layout: esconde o carregamento até a parede ficar pronta.
+        private CurtainWindow? _curtain;
+        private readonly List<Task> _pendingReady = new();
+        private static readonly TimeSpan CurtainMaxWait = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan VideoReadyWait = TimeSpan.FromSeconds(12);
+
         // Servidores que não conseguiram subir (porta ocupada) e seguem sendo tentados.
         private readonly List<(string Nome, Action Iniciar)> _pendingServers = new();
         private System.Windows.Threading.DispatcherTimer? _serverRetryTimer;
@@ -315,6 +321,15 @@ namespace VideoWall.Viewer
 
         private void ApplyLayout(IReadOnlyList<ScreenSource> sources)
         {
+            // Alguma célula vai ter de CARREGAR página nova? Então baixa a cortina antes
+            // de mexer na parede: o carregamento (vídeo quebrado, cada quadro entrando em
+            // tela cheia por vez) acontece atrás dela, e a parede só reaparece pronta.
+            // Quando tudo vem do estacionamento — caso normal a partir da 2ª volta da
+            // rotação — não há o que preparar e a troca é instantânea, sem cortina.
+            bool preparar = NeedsPreparation(sources);
+            if (preparar)
+                ShowCurtain();
+
             _currentSources = sources; // guarda para a consulta de layout (reabrir controlador)
             double w = Surface.ActualWidth > 0 ? Surface.ActualWidth : ActualWidth;
             double h = Surface.ActualHeight > 0 ? Surface.ActualHeight : ActualHeight;
@@ -353,6 +368,114 @@ namespace VideoWall.Viewer
 
             // Persiste para restaurar ao reabrir (atualização/overlay/queda de energia).
             SaveCurrentLayout();
+
+            if (preparar)
+                _ = RevealWhenReadyAsync();
+            else
+                HideCurtain();
+        }
+
+        /// <summary>
+        /// Verdadeiro se alguma célula terá de carregar uma página do zero — ou seja, se
+        /// a troca seria visível como "bastidor". Página que continua na mesma vaga, ou
+        /// que está estacionada, entra pronta e não exige cortina.
+        /// </summary>
+        private bool NeedsPreparation(IReadOnlyList<ScreenSource> sources)
+        {
+            for (int i = 0; i < sources.Count; i++)
+            {
+                var src = sources[i];
+                if (src.Kind != ScreenSource.Browser || string.IsNullOrEmpty(src.Url))
+                    continue;
+
+                bool mesmaVaga = i < _slotUrls.Count &&
+                                 string.Equals(_slotUrls[i], src.Url, StringComparison.Ordinal);
+                if (!mesmaVaga && !_parked.ContainsKey(src.Url))
+                    return true;
+            }
+            return false;
+        }
+
+        private void ShowCurtain()
+        {
+            _curtain ??= new CurtainWindow(this);
+            _curtain.Cover(this);
+        }
+
+        private void HideCurtain()
+        {
+            try { _curtain?.Hide(); } catch { }
+        }
+
+        /// <summary>
+        /// Espera as páginas novas ficarem apresentáveis e então levanta a cortina.
+        /// Sempre há um teto de tempo: página que não carrega não pode deixar a parede
+        /// preta para sempre.
+        /// </summary>
+        private async Task RevealWhenReadyAsync()
+        {
+            var esperas = _pendingReady.ToList();
+            _pendingReady.Clear();
+
+            // A cortina precisa ficar acima das janelas das lives, que também são topmost.
+            _curtain?.BringToTop();
+
+            try
+            {
+                if (esperas.Count > 0)
+                    await Task.WhenAny(Task.WhenAll(esperas), Task.Delay(CurtainMaxWait));
+            }
+            catch { /* alguma página falhou: revela mesmo assim */ }
+
+            HideCurtain();
+        }
+
+        /// <summary>
+        /// Conclui quando a página está apresentável: carregada e, sendo vídeo, já em tela
+        /// cheia (é o ajuste que o usuário via acontecendo ao vivo).
+        /// </summary>
+        private static Task PageReadyAsync(WebView2 web, string url)
+        {
+            var tcs = new TaskCompletionSource();
+            bool ehVideo = url.Contains("cpe.live", StringComparison.OrdinalIgnoreCase) ||
+                           url.Contains("youtube.com", StringComparison.OrdinalIgnoreCase);
+
+            void Ligar(CoreWebView2 core)
+            {
+                core.NavigationCompleted += async (_, _) =>
+                {
+                    if (tcs.Task.IsCompleted)
+                        return;
+
+                    if (ehVideo)
+                    {
+                        // Espera o player assumir a tela cheia (o "ajuste quebrado" que
+                        // aparecia na parede). Se não conseguir, o teto libera.
+                        var limite = DateTime.UtcNow + VideoReadyWait;
+                        while (DateTime.UtcNow < limite)
+                        {
+                            try { if (core.ContainsFullScreenElement) break; } catch { break; }
+                            await Task.Delay(250);
+                        }
+                    }
+
+                    await Task.Delay(300); // respiro para o primeiro quadro estabilizar
+                    tcs.TrySetResult();
+                };
+            }
+
+            if (web.CoreWebView2 is { } pronto)
+                Ligar(pronto);
+            else
+                web.CoreWebView2InitializationCompleted += (_, e) =>
+                {
+                    if (e.IsSuccess && web.CoreWebView2 is { } core)
+                        Ligar(core);
+                    else
+                        tcs.TrySetResult();
+                };
+
+            return tcs.Task;
         }
 
         /// <summary>
@@ -391,6 +514,8 @@ namespace VideoWall.Viewer
                 // renavegar destruiria a página que está saindo, que é justamente a que
                 // queremos guardar viva para quando o layout voltar.
                 var nw = new WebView2 { Tag = src.Zoom };
+                // A cortina só sobe quando esta página estiver apresentável.
+                _pendingReady.Add(PageReadyAsync(nw, src.Url!));
                 // Reaplica o zoom canônico quando o navegador fica pronto e a cada
                 // redimensionamento (mudança de layout) — mantendo a largura lógica fixa.
                 nw.CoreWebView2InitializationCompleted += (_, _) =>
@@ -684,6 +809,8 @@ namespace VideoWall.Viewer
             // consumindo memória do mini-PC (as páginas acima já foram descartadas).
             _parked.Clear();
             _parkOrder.Clear();
+            _pendingReady.Clear();
+            HideCurtain(); // tela limpa não fica escondida atrás da cortina
             _currentSources = null;
             TerminalLayoutStore.Save(null); // tela limpa continua limpa ao reabrir
         }
