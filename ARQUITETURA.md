@@ -212,10 +212,13 @@ GitHub Releases ──(30 min, só o central)──► CONTROLADOR
 
 Detalhes que não são óbvios:
 
-- **A versão vem do arquivo.** Os `.iss` leem `GetVersionNumbersString` do executável
-  publicado, então `setup-terminal.exe` carrega a versão real do terminal. O central lê
-  essa versão com `FileVersionInfo` para responder `/version`. Não existe número escrito
-  à mão em lugar nenhum.
+- **A versão do pacote vem da TAG da release**, anotada num `version.txt` ao lado do
+  instalador em cache; a versão embutida no `.exe` (que os `.iss` gravam desde a 1.39,
+  via `GetVersionNumbersString`) é só a reserva. Confiar apenas no arquivo já quebrou em
+  campo: instaladores gerados antes da 1.39 saíram **sem versão embutida**, e o central
+  passou a anunciar `0.0.0` — nenhum terminal atualizava, e ele rebaixava os mesmos
+  60 MB a cada meia hora. Para alimentar o central à mão, ponha o `setup-terminal.exe`
+  **e um `version.txt`** na pasta `terminal-update`.
 - **Por que uma tarefa agendada.** É o único jeito de instalar sem UAC num quiosque cujo
   usuário não é administrador. O instalador (que roda elevado) a registra como SYSTEM.
 - **Por que um `reabrir.cmd` separado.** A tarefa roda na sessão 0; se ela abrisse o app,

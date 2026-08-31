@@ -54,7 +54,7 @@ não reiniciarem todas ao mesmo tempo.
 **Reserva:** se o central estiver fora do ar, o terminal tenta o GitHub direto
 (precisa de internet no terminal). Se o central estiver sem internet, dá para
 alimentá-lo à mão: copie o `setup-terminal.exe` para uma pasta `terminal-update`
-ao lado de `VideoWall.exe` na instalação do central.
+ao lado de `VideoWall.exe` na instalação do central, junto de um `version.txt` com o número da versão.
 
 ### Lançar uma atualização
 

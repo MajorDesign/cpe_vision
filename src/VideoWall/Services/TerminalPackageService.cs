@@ -36,11 +36,19 @@ namespace VideoWall.Services
         private static string BundledPath =>
             Path.Combine(AppContext.BaseDirectory, "terminal-update", SetupName);
 
+        /// <summary>
+        /// Versão do instalador, gravada ao lado dele. A autoridade sobre a versão é a
+        /// TAG da release, não o arquivo: instaladores gerados antes da 1.39 saíram SEM
+        /// versão embutida, e confiar só neles fazia o central anunciar "0.0.0" (nenhum
+        /// terminal atualizava) e rebaixar o mesmo arquivo a cada ciclo.
+        /// </summary>
+        private static string VersionFileFor(string setupPath) =>
+            Path.Combine(Path.GetDirectoryName(setupPath)!, "version.txt");
+
         public void Start() => _loop = Task.Run(() => LoopAsync(_cts.Token));
 
         /// <summary>
         /// Instalador a servir: o mais NOVO entre o cache e a cópia manual.
-        /// A versão vem do próprio arquivo (o .iss carrega a versão do terminal).
         /// </summary>
         public TerminalPackage? Current()
         {
@@ -59,19 +67,50 @@ namespace VideoWall.Services
                 if (!File.Exists(path))
                     return null;
 
-                string? text = FileVersionInfo.GetVersionInfo(path).FileVersion;
-                if (!Version.TryParse(text, out var v))
+                var version = ReadVersionFile(path) ?? ReadEmbeddedVersion(path);
+                if (version == null)
                     return null;
 
-                return new TerminalPackage(
-                    new Version(Math.Max(0, v.Major), Math.Max(0, v.Minor), Math.Max(0, v.Build)),
-                    path);
+                return new TerminalPackage(version, path);
             }
             catch
             {
                 return null;
             }
         }
+
+        /// <summary>Versão anotada ao lado do instalador (a tag da release que o gerou).</summary>
+        private static Version? ReadVersionFile(string setupPath)
+        {
+            try
+            {
+                string file = VersionFileFor(setupPath);
+                if (!File.Exists(file))
+                    return null;
+                return Version.TryParse(File.ReadAllText(file).Trim(), out var v) ? Normalize(v) : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Versão embutida no instalador (existe a partir da 1.39).</summary>
+        private static Version? ReadEmbeddedVersion(string setupPath)
+        {
+            try
+            {
+                string? text = FileVersionInfo.GetVersionInfo(setupPath).FileVersion;
+                return Version.TryParse(text, out var v) ? Normalize(v) : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Version Normalize(Version v) =>
+            new(Math.Max(0, v.Major), Math.Max(0, v.Minor), Math.Max(0, v.Build));
 
         private async Task LoopAsync(CancellationToken ct)
         {
@@ -103,6 +142,10 @@ namespace VideoWall.Services
 
                 Directory.CreateDirectory(CacheDir);
                 File.Move(temp, CachePath, overwrite: true);
+
+                // Anota a versão da release: sem isso, um instalador sem versão embutida
+                // faria o central anunciar "0.0.0" e rebaixar o arquivo a cada ciclo.
+                File.WriteAllText(VersionFileFor(CachePath), latest.Version.ToString());
             }
             catch
             {
