@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,8 +9,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>..\..\assets\cpe.ico</ApplicationIcon>
-    <!-- Versão do terminal. Suba este número antes de publicar uma atualização. -->
-    <Version>1.48.0</Version>
+    <!-- VersÃ£o do terminal. Suba este nÃºmero antes de publicar uma atualizaÃ§Ã£o. -->
+    <Version>1.49.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

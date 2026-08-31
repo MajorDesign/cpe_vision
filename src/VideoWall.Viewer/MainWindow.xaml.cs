@@ -390,7 +390,7 @@ namespace VideoWall.Viewer
 
                 bool mesmaVaga = i < _slotUrls.Count &&
                                  string.Equals(_slotUrls[i], src.Url, StringComparison.Ordinal);
-                if (!mesmaVaga && !_parked.ContainsKey(src.Url))
+                if (!mesmaVaga && !_parked.ContainsKey(ParkKey(i, src.Url)))
                     return true;
             }
             return false;
@@ -500,7 +500,7 @@ namespace VideoWall.Viewer
                 // A vaga vai exibir OUTRA página. Reaproveita a versão estacionada, se
                 // existir — ela volta exatamente como estava (logada, rolada, no mesmo
                 // ponto do sistema). SetSlot estaciona a página que estava aqui.
-                if (TryUnpark(src.Url!, out var estacionada))
+                if (TryUnpark(ParkKey(i, src.Url!), out var estacionada))
                 {
                     SetSlot(i, estacionada!);
                     _slotUrls[i] = src.Url;
@@ -636,12 +636,23 @@ namespace VideoWall.Viewer
                 return;
 
             if (old is WebView2 web && !string.IsNullOrEmpty(_slotUrls[i]))
-                Park(_slotUrls[i]!, web);
+                Park(ParkKey(i, _slotUrls[i]!), web);
             else
                 Surface.Children.Remove(old);
 
             _slots[i] = null;
         }
+
+        /// <summary>
+        /// Chave do estacionamento: a VAGA mais a página.
+        ///
+        /// Só a URL não serve. É comum a parede repetir o mesmo endereço em várias
+        /// células — quatro quadros do mesmo sistema, cada um aberto numa parte do
+        /// projeto e com seu próprio zoom. Indexando só pela URL, as quatro páginas
+        /// disputariam a mesma chave e três seriam descartadas: voltariam do zero,
+        /// pedindo login e perdendo o enquadramento.
+        /// </summary>
+        private static string ParkKey(int slot, string url) => slot + "|" + url;
 
         /// <summary>
         /// Guarda a página VIVA, apenas oculta, em vez de destruí-la.
@@ -651,7 +662,7 @@ namespace VideoWall.Viewer
         /// em memória/sessionStorage, voltar ao layout caía na tela de login. Oculta, a
         /// página também para de consumir GPU, o que ajuda quando há live na parede.
         /// </summary>
-        private void Park(string url, WebView2 web)
+        private void Park(string chave, WebView2 web)
         {
             web.Visibility = Visibility.Collapsed;
 
@@ -660,13 +671,13 @@ namespace VideoWall.Viewer
             // fora — pausa aqui e o KeepPlayingScript volta a tocar ao reaparecer.
             RunScript(web, "document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})");
 
-            // Já havia uma página estacionada para esta URL: fica com a mais recente.
-            if (_parked.TryGetValue(url, out var anterior) && !ReferenceEquals(anterior, web))
+            // Já havia página estacionada nesta vaga/endereço: fica com a mais recente.
+            if (_parked.TryGetValue(chave, out var anterior) && !ReferenceEquals(anterior, web))
                 Discard(anterior);
 
-            _parked[url] = web;
-            _parkOrder.Remove(url);
-            _parkOrder.Add(url);
+            _parked[chave] = web;
+            _parkOrder.Remove(chave);
+            _parkOrder.Add(chave);
 
             // Teto de memória: cada página viva custa RAM no mini-PC.
             while (_parkOrder.Count > MaxParkedPages)
@@ -678,14 +689,14 @@ namespace VideoWall.Viewer
             }
         }
 
-        /// <summary>Recupera uma página estacionada para a URL, se existir.</summary>
-        private bool TryUnpark(string url, out WebView2? web)
+        /// <summary>Recupera a página estacionada daquela vaga/endereço, se existir.</summary>
+        private bool TryUnpark(string chave, out WebView2? web)
         {
             web = null;
-            if (string.IsNullOrEmpty(url) || !_parked.Remove(url, out var achada))
+            if (string.IsNullOrEmpty(chave) || !_parked.Remove(chave, out var achada))
                 return false;
 
-            _parkOrder.Remove(url);
+            _parkOrder.Remove(chave);
             achada.Visibility = Visibility.Visible;
             RunScript(achada, "document.querySelectorAll('video').forEach(function(v){try{v.play()}catch(e){}})");
             web = achada;
