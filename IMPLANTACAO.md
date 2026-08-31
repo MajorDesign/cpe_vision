@@ -64,7 +64,17 @@ ao lado de `VideoWall.exe` na instalação do central, junto de um `version.txt`
 3. Rode `publicar-release.ps1` com `$env:GITHUB_TOKEN` (escopo `repo`): cria a release
    `vX.Y.Z` em `MajorDesign/cpe_vision` e sobe os assets.
 4. Pronto. O central pega em até 30 min (ou ao reabrir) e as 8 telas em até mais 30 min.
-   Para forçar uma tela, use **🔄 Atualizar terminal** no painel.
+
+Para não esperar, o painel tem dois botões que reiniciam o terminal remotamente (ele
+volta pelo pré-load, que é onde a atualização é buscada) — **sem AnyDesk, sem ir até o
+mini-PC**:
+
+- **🔄 Atualizar terminal** — só a tela selecionada.
+- **🔄 Atualizar TODAS as telas** — a parede inteira, uma a cada 3 segundos (não apaga
+  tudo de uma vez, e evita 8 downloads simultâneos).
+
+Cada tela volta exibindo o mesmo layout e já logada: o terminal salva o que está no ar
+antes de reiniciar e restaura ao abrir.
 
 > Nada de reinstalar tela por tela: instala-se o terminal **uma vez**; depois é só
 > publicar a release.
