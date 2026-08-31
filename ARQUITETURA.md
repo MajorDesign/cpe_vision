@@ -178,6 +178,21 @@ selecionada, o controlador ainda **recorta essa foto por célula** (mesma normal
 do envio) e usa cada pedaço como prévia do elemento correspondente — é assim que a
 pré-visualização grande mostra conteúdo real.
 
+### Estacionamento de páginas (trocar de layout sem deslogar)
+
+Quando uma fonte sai do layout, o terminal **não destrói** o navegador dela: guarda-o
+vivo e oculto (`_parked`, indexado pela URL projetada, teto de 4 páginas). Voltando a
+aparecer, a página é reaproveitada como estava — logada, rolada, sem recarregar.
+
+Isso existe por causa da **rotação**: alternar entre um layout de lives e um layout do
+sistema destruía o navegador do sistema, e sistemas que guardam o token na sessão da aba
+(memória/`sessionStorage`) voltavam na tela de login. Cookies sobrevivem a um
+recarregamento; sessão de aba, não. Medido: página oculta e reexibida mantém
+`sessionStorage` e o contador de carregamentos em 1; destruída e recriada, perde tudo.
+
+Efeito colateral bem-vindo: oculta, a página é limitada pelo Chromium e para de disputar
+GPU — ajuda a live a não engasgar. "Parar tela" descarta tudo, inclusive o estacionamento.
+
 ## 6. Agendamento e rotação
 
 `ScheduleService` guarda entradas com horário, dias, layout **e tela alvo**. Ao disparar,

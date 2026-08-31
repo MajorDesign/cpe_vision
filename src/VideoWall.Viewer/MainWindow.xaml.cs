@@ -35,6 +35,12 @@ namespace VideoWall.Viewer
         private LayoutQueryServer? _layoutQueryServer;
         private System.Windows.Threading.DispatcherTimer? _layoutSaveTimer;
 
+        // Páginas que saíram do layout mas continuam VIVAS (ocultas), por URL projetada.
+        // É o que permite a rotação de layouts sem recarregar nem deslogar as páginas.
+        private readonly Dictionary<string, WebView2> _parked = new(StringComparer.Ordinal);
+        private readonly List<string> _parkOrder = new();   // ordem de uso, p/ descartar as antigas
+        private const int MaxParkedPages = 4;
+
         // Servidores que não conseguiram subir (porta ocupada) e seguem sendo tentados.
         private readonly List<(string Nome, Action Iniciar)> _pendingServers = new();
         private System.Windows.Threading.DispatcherTimer? _serverRetryTimer;
@@ -357,12 +363,33 @@ namespace VideoWall.Viewer
                 {
                     if (!string.Equals(_slotUrls[i], src.Url, StringComparison.Ordinal))
                     {
+                        // A vaga mudou de página: antes de recarregar, veja se a página
+                        // pedida já está estacionada (viva, do layout anterior).
+                        if (TryUnpark(src.Url!, out var estacionada))
+                        {
+                            SetSlot(i, estacionada!);
+                            _slotUrls[i] = src.Url;
+                            estacionada!.Tag = src.Zoom;
+                            ApplyCanonicalZoom(estacionada);
+                            return estacionada;
+                        }
+
                         _slotUrls[i] = src.Url;
                         try { web.Source = uri; } catch { }
                     }
                     web.Tag = src.Zoom; // zoom relativo desejado pelo usuário
                     ApplyCanonicalZoom(web);
                     return web;
+                }
+
+                // Vaga vazia ou de outro tipo: reaproveita a página estacionada, se houver.
+                if (TryUnpark(src.Url!, out var reaproveitada))
+                {
+                    SetSlot(i, reaproveitada!);
+                    _slotUrls[i] = src.Url;
+                    reaproveitada!.Tag = src.Zoom;
+                    ApplyCanonicalZoom(reaproveitada);
+                    return reaproveitada;
                 }
 
                 var nw = new WebView2 { Tag = src.Zoom };
@@ -457,30 +484,89 @@ namespace VideoWall.Viewer
             }
         }
 
-        /// <summary>Coloca um novo elemento na vaga, descartando o anterior.</summary>
+        /// <summary>Coloca um novo elemento na vaga, aposentando o anterior.</summary>
         private void SetSlot(int i, FrameworkElement element)
         {
-            var old = _slots[i];
-            if (old != null)
-            {
-                if (old is WebView2 w) { try { w.Dispose(); } catch { } }
-                Surface.Children.Remove(old);
-            }
+            RetireSlotElement(i);
             _slots[i] = element;
-            Surface.Children.Add(element);
+            if (!Surface.Children.Contains(element))
+                Surface.Children.Add(element);
+            element.Visibility = Visibility.Visible;
         }
 
         private void RemoveSlot(int i)
         {
-            var old = _slots[i];
-            if (old != null)
-            {
-                if (old is WebView2 w) { try { w.Dispose(); } catch { } }
-                Surface.Children.Remove(old);
-            }
+            RetireSlotElement(i);
             CloseOverlay(i);
             _slots.RemoveAt(i);
             _slotUrls.RemoveAt(i);
+        }
+
+        /// <summary>
+        /// Tira o elemento da vaga: navegadores vão para o ESTACIONAMENTO (ficam vivos,
+        /// ocultos); o resto é descartado.
+        /// </summary>
+        private void RetireSlotElement(int i)
+        {
+            var old = _slots[i];
+            if (old == null)
+                return;
+
+            if (old is WebView2 web && !string.IsNullOrEmpty(_slotUrls[i]))
+                Park(_slotUrls[i]!, web);
+            else
+                Surface.Children.Remove(old);
+
+            _slots[i] = null;
+        }
+
+        /// <summary>
+        /// Guarda a página VIVA, apenas oculta, em vez de destruí-la.
+        ///
+        /// É o que permite alternar layouts (rotação) sem deslogar: destruir o WebView2
+        /// leva junto a sessão que o site mantém na aba — em sistemas que guardam o token
+        /// em memória/sessionStorage, voltar ao layout caía na tela de login. Oculta, a
+        /// página também para de consumir GPU, o que ajuda quando há live na parede.
+        /// </summary>
+        private void Park(string url, WebView2 web)
+        {
+            web.Visibility = Visibility.Collapsed;
+
+            // Já havia uma página estacionada para esta URL: fica com a mais recente.
+            if (_parked.TryGetValue(url, out var anterior) && !ReferenceEquals(anterior, web))
+                Discard(anterior);
+
+            _parked[url] = web;
+            _parkOrder.Remove(url);
+            _parkOrder.Add(url);
+
+            // Teto de memória: cada página viva custa RAM no mini-PC.
+            while (_parkOrder.Count > MaxParkedPages)
+            {
+                string maisAntiga = _parkOrder[0];
+                _parkOrder.RemoveAt(0);
+                if (_parked.Remove(maisAntiga, out var velha))
+                    Discard(velha);
+            }
+        }
+
+        /// <summary>Recupera uma página estacionada para a URL, se existir.</summary>
+        private bool TryUnpark(string url, out WebView2? web)
+        {
+            web = null;
+            if (string.IsNullOrEmpty(url) || !_parked.Remove(url, out var achada))
+                return false;
+
+            _parkOrder.Remove(url);
+            achada.Visibility = Visibility.Visible;
+            web = achada;
+            return true;
+        }
+
+        private void Discard(WebView2 web)
+        {
+            Surface.Children.Remove(web);
+            try { web.Dispose(); } catch { }
         }
 
         /// <summary>
@@ -579,6 +665,10 @@ namespace VideoWall.Viewer
             Surface.Children.Clear();
             _slots.Clear();
             _slotUrls.Clear();
+            // "Parar tela" é uma parada deliberada: nada fica vivo em segundo plano
+            // consumindo memória do mini-PC (as páginas acima já foram descartadas).
+            _parked.Clear();
+            _parkOrder.Clear();
             _currentSources = null;
             TerminalLayoutStore.Save(null); // tela limpa continua limpa ao reabrir
         }
