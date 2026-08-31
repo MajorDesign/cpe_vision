@@ -21,6 +21,10 @@ namespace VideoWall.ViewModels
         private readonly IScheduleService _scheduleService;
         private readonly DispatcherTimer _scheduleTimer;
         private readonly DispatcherTimer _thumbnailTimer;
+
+        /// <summary>Telas não selecionadas só tiram foto a cada N ciclos (3s × 5 = 15s).</summary>
+        private const int ThumbnailSlowFactor = 5;
+        private int _thumbnailTick;
         private readonly DispatcherTimer _rotationTimer;
         private readonly ViewerDiscoveryListener _discovery;
         private RemoteScreen? _rotationScreen;
@@ -707,15 +711,37 @@ namespace VideoWall.ViewModels
         /// <summary>
         /// Pede a cada terminal uma foto do que está exibindo e atualiza a miniatura.
         /// Roda em paralelo por tela e nunca bloqueia a interface.
+        ///
+        /// Cada foto custa caro NO TERMINAL: um BitBlt da tela inteira com CAPTUREBLT
+        /// mais a compressão JPEG. Ler o framebuffer engasga o compositor do Windows por
+        /// alguns milissegundos — invisível numa máquina folgada, mas é uma micro-travada
+        /// num vídeo que já divide a GPU com um dashboard pesado. Por isso só pedimos
+        /// foto quando há alguém olhando, e as telas NÃO selecionadas são atualizadas
+        /// bem mais devagar: a tela selecionada é a única que alimenta a
+        /// pré-visualização grande, recortada célula a célula.
         /// </summary>
         private async void PollThumbnails()
         {
             if (_pollingThumbnails)
                 return;
+
+            // Controlador minimizado/oculto: ninguém está vendo miniatura nenhuma.
+            // (De propósito NÃO usamos "janela sem foco": com dois monitores, é comum
+            // deixar a parede visível de lado enquanto se trabalha em outra janela.)
+            if (!IsControllerOnScreen())
+                return;
+
+            _thumbnailTick++;
+            bool slowRound = _thumbnailTick % ThumbnailSlowFactor == 0;
+
             _pollingThumbnails = true;
             try
             {
-                var screens = RemoteScreens.ToList();
+                var screens = RemoteScreens
+                    .Where(s => slowRound || ReferenceEquals(s, SelectedScreen))
+                    .ToList();
+                if (screens.Count == 0)
+                    return;
                 await Task.WhenAll(screens.Select(async screen =>
                 {
                     var jpeg = await ThumbnailClient.RequestAsync(screen.IpAddress);
@@ -736,6 +762,15 @@ namespace VideoWall.ViewModels
             }
             catch { /* rede instável: tenta de novo no próximo tick */ }
             finally { _pollingThumbnails = false; }
+        }
+
+        /// <summary>Verdadeiro se a janela do controlador está de fato visível na tela.</summary>
+        private static bool IsControllerOnScreen()
+        {
+            var window = System.Windows.Application.Current?.MainWindow;
+            if (window == null)
+                return true; // sem janela (inicialização/testes): não bloqueia o ciclo
+            return window.WindowState != System.Windows.WindowState.Minimized && window.IsVisible;
         }
 
         /// <summary>
