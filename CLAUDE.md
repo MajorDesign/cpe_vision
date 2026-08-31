@@ -64,7 +64,7 @@ Windows já em cache. Histórico é linear na `main`, um commit por versão.
 
 ## Regras do projeto (quebrar estas dá bug em campo)
 
-1. **Toda alteração sobe a versão nos DOIS csproj**, sempre iguais:
+1. **Toda alteração de código sobe a versão nos DOIS csproj**, sempre iguais:
    `src/VideoWall/VideoWall.csproj` e `src/VideoWall.Viewer/VideoWall.Viewer.csproj`.
    É esse número que o auto-update compara. Se você mexeu no terminal e não subiu a
    versão, a mudança **não chega às TVs**.

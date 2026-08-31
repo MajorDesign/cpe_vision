@@ -69,6 +69,33 @@ ao lado de `VideoWall.exe` na instalação do central, junto de um `version.txt`
 > Nada de reinstalar tela por tela: instala-se o terminal **uma vez**; depois é só
 > publicar a release.
 
+## Páginas que exigem login
+
+O login **não viaja junto com a URL**. Cada navegador tem seu próprio perfil: o do
+controlador fica no PC central, o de cada terminal fica no mini-PC dele. Por isso a
+pré-visualização (duplo-clique na fonte) pode aparecer **logada** enquanto a TV mostra a
+tela de login — o sistema redireciona para `/login` porque aquele navegador não tem sessão.
+
+Como logar uma tela:
+
+1. Selecione a tela e a célula da página.
+2. **🔴 Controle ao vivo** — o mouse e o teclado vão para o navegador do terminal.
+3. Digite usuário e senha ali e entre.
+4. Feche a janela. **Não** clique em "Parar tela" (isso limpa a tela).
+
+É uma vez por terminal: a sessão fica no perfil do WebView2 do terminal
+(`%LocalAppData%`) e sobrevive a reinício, atualização e queda de energia — ao voltar,
+o terminal restaura o layout com as URLs ao vivo e a página volta logada.
+
+Depois de logar, **salve o layout de novo** para gravar a URL boa (ex.:
+`/home/radar?pageId=591`). Se o layout tiver `/login` guardado, reprojetar joga a célula
+de volta para a tela de login. Reprojetar a mesma URL é inofensivo: o terminal só
+recarrega uma célula quando a URL projetada muda.
+
+Se um dia a sessão passar a expirar com frequência, as saídas são levar os cookies do
+central para as telas ou guardar as credenciais no terminal para auto-login — nenhuma
+das duas está implementada.
+
 ## Portas usadas
 
 | Porta | Direção | Uso |
