@@ -509,6 +509,9 @@ namespace VideoWall.ViewModels
             copy.Y += _pasteCount * 30;
             copy.ZIndex = NextZIndex();
             _elementCounter++;
+            // Sem isto a cópia herdava o nome do original, e a lista ficava com várias
+            // fontes idênticas ("Navegador 6" quatro vezes) — impossível saber qual é qual.
+            copy.Name = $"{copy.Kind} {_elementCounter}";
 
             Elements.Add(copy);
             SelectedElement = copy;

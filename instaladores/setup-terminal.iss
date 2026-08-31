@@ -144,9 +144,21 @@ begin
     'set "U=' + UpdateDir + '"' + #13#10 +
     'if not exist "%U%\setup-terminal.exe" exit /b 0' + #13#10 +
     'del /q "%U%\pronto.flag" 2>nul' + #13#10 +
-    '"%U%\setup-terminal.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS' + #13#10 +
+    // UMA tentativa por download: renomeia antes de instalar. Sem isto, uma
+    // instalacao que falha sempre ficaria encerrando o terminal a cada 5 minutos.
+    'move /y "%U%\setup-terminal.exe" "%U%\instalando.exe" >nul' + #13#10 +
+    // A instalacao roda como SYSTEM, na sessao 0, e nao consegue substituir o
+    // executavel que esta EM USO na sessao do usuario - a instalacao falhava em
+    // silencio e a tela ficava presa na versao antiga. Encerra o terminal antes;
+    // o reabrir.cmd, que roda na sessao do usuario, o traz de volta ao terminar.
+    'taskkill /f /im VideoWall.Viewer.exe >nul 2>&1' + #13#10 +
+    'timeout /t 3 /nobreak >nul' + #13#10 +
+    '"%U%\instalando.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS' + #13#10 +
+    // Registro do resultado: e a unica evidencia do que aconteceu numa tela sem
+    // ninguem por perto (0 = sucesso).
+    'echo %date% %time% resultado=%ERRORLEVEL%>> "%U%\ultima-instalacao.txt"' + #13#10 +
     'echo ok> "%U%\pronto.flag"' + #13#10 +
-    'del /q "%U%\setup-terminal.exe" 2>nul' + #13#10;
+    'del /q "%U%\instalando.exe" 2>nul' + #13#10;
 
   if not SaveStringToFile(CmdPath, Script, False) then
     Exit;

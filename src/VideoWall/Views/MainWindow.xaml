@@ -241,12 +241,18 @@
                             ToolTip="Salva a fonte selecionada na parede como favorito"/>
 
                     <TextBlock Text="Novo favorito" Style="{StaticResource FieldLabel}" Margin="0,4,0,2"/>
+                    <TextBlock Text="Guarde páginas e imagens que você usa sempre, para reaproveitar sem digitar de novo."
+                               Foreground="{StaticResource OnDarkMuted}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock Text="Tipo" Style="{StaticResource FieldLabel}"/>
                     <ComboBox ItemsSource="{Binding FavoriteCategories}"
                               SelectedItem="{Binding NewFavoriteCategory}"
                               Margin="0,0,0,6" Padding="6,4"/>
+                    <TextBlock Text="Nome (como vai aparecer na lista)" Style="{StaticResource FieldLabel}"/>
                     <TextBox Style="{StaticResource NumberBox}"
                              Text="{Binding NewFavoriteName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Nome do favorito"/>
+                             ToolTip="Ex.: Dashboard Surubim"/>
+                    <TextBlock Text="Endereço da página ou arquivo de imagem" Style="{StaticResource FieldLabel}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -255,18 +261,22 @@
                         </Grid.ColumnDefinitions>
                         <TextBox Grid.Column="0" Style="{StaticResource NumberBox}"
                                  Text="{Binding NewFavoritePayload, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="URL, URL RTSP ou caminho da imagem"/>
+                                 ToolTip="Ex.: http://187.1.182.5:30000/home/radar — ou use o botão ao lado para escolher uma imagem"/>
                         <Button Grid.Column="2" Content="📁" Style="{StaticResource SubtleButton}"
                                 Command="{Binding BrowseFavoritePayloadCommand}"
-                                Padding="10,4" ToolTip="Procurar imagem"/>
+                                Padding="10,4" ToolTip="Procurar uma imagem no computador"/>
                     </Grid>
                     <Button Content="★ Adicionar favorito" Style="{StaticResource SubtleButton}"
-                            Command="{Binding AddFavoriteCommand}"/>
+                            Command="{Binding AddFavoriteCommand}"
+                            ToolTip="Preencha o nome e o endereço para habilitar"/>
 
                     <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
 
                     <!-- Lista de elementos -->
-                    <TextBlock Text="FONTES NA PAREDE" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <TextBlock Text="FONTES NA PAREDE" Style="{StaticResource SectionLabel}" Margin="0,4,0,2"/>
+                    <TextBlock Text="Cada item é um quadro da tela. Clique para selecionar e editar abaixo."
+                               Foreground="{StaticResource OnDarkMuted}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <ListBox ItemsSource="{Binding Elements}"
                              SelectedItem="{Binding SelectedElement}"
                              Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
@@ -304,12 +314,15 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="↑ Frente" Style="{StaticResource SubtleButton}"
-                                Command="{Binding BringToFrontCommand}"/>
+                                Command="{Binding BringToFrontCommand}"
+                                ToolTip="Coloca a fonte por cima das outras. Só muda algo quando elas se sobrepõem — numa grade 2×2, sem sobreposição, não há efeito."/>
                         <Button Grid.Column="2" Content="↓ Trás" Style="{StaticResource SubtleButton}"
-                                Command="{Binding SendToBackCommand}"/>
+                                Command="{Binding SendToBackCommand}"
+                                ToolTip="Coloca a fonte atrás das outras. Só muda algo quando elas se sobrepõem."/>
                     </Grid>
                     <Button Content="🗑  Remover selecionado" Style="{StaticResource SubtleButton}"
-                            Command="{Binding RemoveSelectedCommand}"/>
+                            Command="{Binding RemoveSelectedCommand}"
+                            ToolTip="Tira a fonte da parede. A TV só muda depois de ▶ Projetar na tela."/>
 
                     <!-- Editor de propriedades do elemento selecionado -->
                     <Border Background="{StaticResource InputBg}" BorderBrush="{StaticResource HairDark}"
@@ -469,6 +482,13 @@
                                          ToolTip="Caminho do arquivo de imagem"/>
                             </StackPanel>
 
+                            <!-- Posição e tamanho. Normalmente se ajusta arrastando na
+                                 pré-visualização; estes campos são para o ajuste fino. -->
+                            <TextBlock Text="POSIÇÃO E TAMANHO" Style="{StaticResource SectionLabel}"
+                                       Margin="0,10,0,2"/>
+                            <TextBlock Text="Em pixels da parede. Dá para arrastar e redimensionar direto na pré-visualização."
+                                       Foreground="{StaticResource OnDarkMuted}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,0,0,6"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -476,12 +496,12 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="X" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="Distância da esquerda" Style="{StaticResource FieldLabel}"/>
                                     <TextBox Style="{StaticResource NumberBox}"
                                              Text="{Binding X, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Y" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="Distância do topo" Style="{StaticResource FieldLabel}"/>
                                     <TextBox Style="{StaticResource NumberBox}"
                                              Text="{Binding Y, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
                                 </StackPanel>
@@ -503,10 +523,13 @@
                                              Text="{Binding Height, UpdateSourceTrigger=PropertyChanged, StringFormat=N0}"/>
                                 </StackPanel>
                             </Grid>
-                            <TextBlock Text="Opacidade" Style="{StaticResource FieldLabel}"/>
-                            <Slider Minimum="0" Maximum="1" Value="{Binding Opacity}"
-                                    Margin="0,0,0,6"/>
-                            <CheckBox Content="Visível" IsChecked="{Binding IsVisible}"/>
+                            <!-- "Opacidade" e "Visível" foram REMOVIDOS: o protocolo não os
+                                 transporta, então mudá-los alterava só a pré-visualização
+                                 enquanto a TV seguia igual — inclusive uma fonte "invisível"
+                                 continuava aparecendo na tela. -->
+                            <TextBlock Text="As mudanças aqui só chegam à TV depois de clicar em ▶ Projetar na tela."
+                                       Foreground="{StaticResource OnDarkMuted}" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,10,0,0"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

@@ -45,6 +45,26 @@ namespace VideoWall.Viewer
 
         public TerminalUpdater() => _locator.Start();
 
+        /// <summary>
+        /// Há um instalador esperando na pasta de troca? Então deixa o vigia de reabertura
+        /// armado desde já.
+        ///
+        /// A tarefa agendada ENCERRA o terminal para conseguir trocar o executável, e quem
+        /// o reabre é esse vigia — que roda na sessão do usuário, porque a tarefa é SYSTEM
+        /// (sessão 0) e não consegue abrir janela. Sem isto, um instalador baixado numa
+        /// execução anterior seria aplicado com ninguém para trazer a tela de volta, e a
+        /// parede ficaria apagada até o próximo logon.
+        /// </summary>
+        public void ArmReopenIfUpdatePending()
+        {
+            try
+            {
+                if (File.Exists(SetupPath))
+                    StartReopenWatcher();
+            }
+            catch { /* sem acesso à pasta: nada a armar */ }
+        }
+
         /// <summary>Aguarda (até o limite) o primeiro anúncio do central na rede.</summary>
         public async Task WaitForControllerAsync(TimeSpan timeout)
         {

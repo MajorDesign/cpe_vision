@@ -160,6 +160,9 @@ namespace VideoWall.Viewer
             // GitHub como reserva) e se atualiza sozinho. O primeiro ciclo sai numa
             // hora aleatória para as 8 telas não reiniciarem todas juntas.
             _updater = new TerminalUpdater();
+            // Instalador baixado numa execução anterior e ainda não aplicado: deixa o
+            // vigia armado para reabrir a tela quando a tarefa encerrar este processo.
+            _updater.ArmReopenIfUpdatePending();
             _updateTimer = new System.Windows.Threading.DispatcherTimer
             { Interval = TimeSpan.FromMinutes(Random.Shared.Next(3, 31)) };
             _updateTimer.Tick += async (_, _) =>
