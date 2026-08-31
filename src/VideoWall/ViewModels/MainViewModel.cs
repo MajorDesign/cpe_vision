@@ -33,6 +33,7 @@ namespace VideoWall.ViewModels
         private bool _schedulerPaused;
         private UdpBeacon? _controllerBeacon;
         private UpdateServer? _updateServer;
+        private Services.TerminalPackageService? _terminalPackages;
         private bool _pollingThumbnails;
         private RemoteScreen? _selectedScreen;
         private string _remoteUrl = "https://";
@@ -791,19 +792,21 @@ namespace VideoWall.ViewModels
         }
 
         /// <summary>
-        /// Anuncia o central na rede e serve o binário do terminal (de
-        /// "terminal-update" ao lado do executável) para os terminais se
-        /// auto-atualizarem pela rede local.
+        /// Anuncia o central na rede e serve o INSTALADOR do terminal para as telas
+        /// se auto-atualizarem pela rede local. O central baixa a versão nova do
+        /// GitHub uma única vez e a distribui na LAN — os terminais não precisam de
+        /// internet.
         /// </summary>
         private void StartUpdateServices()
         {
             try
             {
                 const int updatePort = 48020;
-                string viewerExe = System.IO.Path.Combine(
-                    AppContext.BaseDirectory, "terminal-update", "VideoWall.Viewer.exe");
 
-                _updateServer = new UpdateServer(viewerExe, updatePort);
+                _terminalPackages = new Services.TerminalPackageService();
+                _terminalPackages.Start();
+
+                _updateServer = new UpdateServer(() => _terminalPackages.Current(), updatePort);
                 _updateServer.Start();
 
                 _controllerBeacon = new UdpBeacon(new ControllerInfo
@@ -1824,6 +1827,7 @@ namespace VideoWall.ViewModels
             _discovery.Dispose();
             _controllerBeacon?.Dispose();
             _updateServer?.Dispose();
+            _terminalPackages?.Dispose();
             _displayService.Stop();
             _captureService.StopAll();
             _monitorService.MonitorsChanged -= OnMonitorsChanged;

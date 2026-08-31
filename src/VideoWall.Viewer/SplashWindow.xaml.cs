@@ -6,20 +6,21 @@ using VideoWall.Network;
 namespace VideoWall.Viewer
 {
     /// <summary>
-    /// Pré-load do terminal: mostra a versão, verifica no GitHub se há uma versão mais nova
-    /// e, se houver, baixa o instalador e o executa (silencioso). Caso contrário (ou
-    /// sem internet), abre o terminal normalmente.
+    /// Pré-load do terminal: mostra a versão e verifica se há uma versão mais nova —
+    /// primeiro no computador central da rede local, depois no GitHub. Havendo, baixa
+    /// o instalador e dispara a instalação silenciosa. Caso contrário, abre o terminal
+    /// normalmente. A verificação continua acontecendo com o terminal aberto (ver
+    /// <see cref="TerminalUpdater"/> em MainWindow).
     /// </summary>
     public partial class SplashWindow : Window
     {
-        // Atualiza via INSTALADOR (como o controlador): a autossubstituição do .exe
-        // falhava em Arquivos de Programas (sem permissão de escrita do quiosque),
-        // deixando o terminal preso numa versão. O instalador eleva e troca o app.
-        private const string AssetName = "setup-terminal.exe";
-
         // Tempo mínimo que o pré-load fica visível, para dar tempo de ver a animação
         // (sem isso, quando não há atualização, ele fecha rápido demais).
         private const int MinSplashMs = 5000;
+
+        // Espera pelo anúncio do central (chega a cada 2s) antes de decidir a fonte.
+        private static readonly TimeSpan ControllerWait = TimeSpan.FromSeconds(4);
+
         private readonly Stopwatch _shownSince = Stopwatch.StartNew();
 
         public SplashWindow()
@@ -35,31 +36,20 @@ namespace VideoWall.Viewer
 
             try
             {
-                var latest = await GitHubUpdater.GetLatestAsync();
-                if (latest != null &&
-                    latest.Version > GitHubUpdater.CurrentVersion() &&
-                    latest.Assets.TryGetValue(AssetName, out var url))
+                using var updater = new TerminalUpdater();
+                await updater.WaitForControllerAsync(ControllerWait);
+
+                if (await updater.CheckAndUpdateAsync())
                 {
-                    StatusText.Text = $"Baixando versão {latest.Version}…";
-                    string installer = await GitHubUpdater.DownloadToTempAsync(url, AssetName);
-
+                    // O instalador assume: fecha este processo e o "reabrir.cmd"
+                    // abre o terminal já atualizado.
                     StatusText.Text = "Instalando atualização…";
-                    // Instalação SILENCIOSA: fecha o terminal em uso, instala e reabre
-                    // sozinho (ver [Run] WizardSilent no setup-terminal.iss).
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = installer,
-                        Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS",
-                        UseShellExecute = true,
-                    });
-
-                    Application.Current.Shutdown(); // o instalador assume e reabre o terminal
                     return;
                 }
             }
             catch
             {
-                // Sem internet / falha na verificação: segue abrindo o terminal.
+                // Central fora do ar / sem internet: segue abrindo o terminal.
             }
 
             // Garante o tempo mínimo de exibição do pré-load.

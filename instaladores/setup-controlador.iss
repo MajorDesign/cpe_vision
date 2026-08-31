@@ -5,12 +5,14 @@
 ; ============================================================
 
 #define AppName "CPE VideoWall Controlador"
-#define AppVersion "1.0.0"
+; Versao lida do proprio executavel publicado (mesma do <Version> do csproj).
+#define AppVersion GetVersionNumbersString("..\dist\Controlador\VideoWall.exe")
 #define Publisher "CPE Tecnologia"
 
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
 AppPublisher={#Publisher}
 DefaultDirName={autopf}\CPE\VideoWall Controlador
 DefaultGroupName=CPE VideoWall

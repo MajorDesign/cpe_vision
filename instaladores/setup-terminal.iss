@@ -1,15 +1,20 @@
 ; ============================================================
 ;  Instalador do Terminal (terminal burro) - CPE VideoWall
-;  Inclui o runtime .NET 8 Desktop. Configura inicio automatico.
+;  Inclui o runtime .NET 8 Desktop. Configura inicio automatico
+;  e a tarefa agendada que aplica as atualizacoes sem UAC.
 ; ============================================================
 
 #define AppName "CPE VideoWall Terminal"
-#define AppVersion "1.0.0"
+; A versao vem do proprio executavel publicado (mesma do <Version> do csproj):
+; e ela que o central compara para decidir se ha atualizacao.
+#define AppVersion GetVersionNumbersString("..\dist\Terminal\VideoWall.Viewer.exe")
 #define Publisher "CPE Tecnologia"
+#define UpdateTask "CPE VideoWall Update"
 
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
 AppPublisher={#Publisher}
 DefaultDirName={autopf}\CPE\VideoWall Terminal
 DefaultGroupName=CPE VideoWall
@@ -36,6 +41,12 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; GroupDescription: "Atalhos:"
 
+[Dirs]
+; Pasta de troca do auto-update: o terminal (usuario comum) precisa gravar aqui
+; o instalador baixado; a tarefa agendada o executa como SYSTEM.
+Name: "{commonappdata}\CPE\VideoWall"
+Name: "{commonappdata}\CPE\VideoWall\update"; Permissions: users-modify
+
 [Files]
 Source: "..\dist\Terminal\VideoWall.Viewer.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Redistribuiveis (instalados silenciosamente se necessario)
@@ -56,8 +67,14 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""CPE VideoWall Terminal"""; Flags: runhidden; StatusMsg: "Configurando firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""CPE VideoWall Terminal"" dir=in action=allow program=""{app}\VideoWall.Viewer.exe"" enable=yes profile=any"; Flags: runhidden waituntilterminated; StatusMsg: "Configurando firewall..."
 Filename: "{app}\VideoWall.Viewer.exe"; Description: "Iniciar o Terminal agora"; Flags: nowait postinstall skipifsilent
-; Auto-update silencioso: reabre o terminal sozinho após instalar.
-Filename: "{app}\VideoWall.Viewer.exe"; Flags: nowait runasoriginaluser; Check: WizardSilent
+; Atualizacao vinda da versao ANTERIOR (1.38 e mais antigas), que executava o
+; instalador direto na sessao do usuario: reabre o terminal ao final. A partir da
+; 1.39 quem reabre e o "reabrir.cmd", e este passo e ignorado (o instalador roda
+; como SYSTEM pela tarefa agendada, e abrir ali criaria uma instancia invisivel).
+Filename: "{app}\VideoWall.Viewer.exe"; Flags: nowait runasoriginaluser; Check: NeedsSelfRelaunch
+
+[UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /f /tn ""{#UpdateTask}"""; Flags: runhidden; RunOnceId: "DelUpdateTask"
 
 [Code]
 function DotNet8Present(): Boolean;
@@ -87,4 +104,54 @@ begin
     RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', pv)
     or RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', pv)
   );
+end;
+
+{ Verdadeiro quando o instalador foi iniciado pela tarefa agendada (conta SYSTEM).
+  O perfil do SYSTEM fica em ...\config\systemprofile, o que identifica o caso. }
+function RunningAsSystem(): Boolean;
+begin
+  Result := Pos('systemprofile', LowerCase(ExpandConstant('{userappdata}'))) > 0;
+end;
+
+function NeedsSelfRelaunch(): Boolean;
+begin
+  Result := WizardSilent and (not RunningAsSystem());
+end;
+
+{ Cria o script de atualizacao e registra a tarefa agendada que o executa como
+  SYSTEM. E ela que permite atualizar um quiosque sem ninguem na frente da TV:
+  o terminal roda como usuario comum e nao poderia gravar em Arquivos de
+  Programas nem elevar sozinho. O script grava "pronto.flag" ao terminar, que e
+  o sinal para o terminal reabrir. }
+procedure RegisterUpdateTask();
+var
+  Base, UpdateDir, CmdPath, Script: String;
+  ResultCode: Integer;
+begin
+  Base := ExpandConstant('{commonappdata}\CPE\VideoWall');
+  UpdateDir := Base + '\update';
+  CmdPath := Base + '\atualizar.cmd';
+
+  Script :=
+    '@echo off' + #13#10 +
+    'set "U=' + UpdateDir + '"' + #13#10 +
+    'if not exist "%U%\setup-terminal.exe" exit /b 0' + #13#10 +
+    'del /q "%U%\pronto.flag" 2>nul' + #13#10 +
+    '"%U%\setup-terminal.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /FORCECLOSEAPPLICATIONS' + #13#10 +
+    'echo ok> "%U%\pronto.flag"' + #13#10 +
+    'del /q "%U%\setup-terminal.exe" 2>nul' + #13#10;
+
+  if not SaveStringToFile(CmdPath, Script, False) then
+    Exit;
+
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+       '/create /f /tn "{#UpdateTask}" /sc ONCE /st 00:00 /ru SYSTEM /rl HIGHEST' +
+       ' /tr "cmd /c \"' + CmdPath + '\""',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    RegisterUpdateTask();
 end;

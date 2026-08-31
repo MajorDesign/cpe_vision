@@ -29,7 +29,8 @@ namespace VideoWall.Viewer
                 args += " --disable-features=DirectCompositionVideoOverlays";
             Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", args);
 
-            // O pré-load verifica atualizações no GitHub e então abre o terminal.
+            // O pré-load verifica atualizações (central na LAN, GitHub como reserva)
+            // e então abre o terminal.
             new SplashWindow().Show();
         }
     }

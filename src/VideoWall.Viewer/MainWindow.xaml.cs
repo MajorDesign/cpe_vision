@@ -35,6 +35,11 @@ namespace VideoWall.Viewer
         private LayoutQueryServer? _layoutQueryServer;
         private System.Windows.Threading.DispatcherTimer? _layoutSaveTimer;
 
+        // Auto-update com o terminal aberto (quiosque 24/7 raramente reinicia).
+        private TerminalUpdater? _updater;
+        private System.Windows.Threading.DispatcherTimer? _updateTimer;
+        private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromMinutes(30);
+
         // Último layout aplicado (para o controlador reconstruir a parede ao reabrir).
         private IReadOnlyList<ScreenSource>? _currentSources;
 
@@ -127,7 +132,19 @@ namespace VideoWall.Viewer
             _layoutSaveTimer.Tick += (_, _) => SaveCurrentLayout();
             _layoutSaveTimer.Start();
 
-            // A atualização agora é pelo GitHub, verificada no pré-load (SplashWindow).
+            // Auto-update 24/7: o terminal fica ligado por semanas, então não basta
+            // verificar no pré-load. A cada meia hora ele consulta o central (e o
+            // GitHub como reserva) e se atualiza sozinho. O primeiro ciclo sai numa
+            // hora aleatória para as 8 telas não reiniciarem todas juntas.
+            _updater = new TerminalUpdater();
+            _updateTimer = new System.Windows.Threading.DispatcherTimer
+            { Interval = TimeSpan.FromMinutes(Random.Shared.Next(3, 31)) };
+            _updateTimer.Tick += async (_, _) =>
+            {
+                _updateTimer!.Interval = UpdateCheckInterval;
+                await _updater!.CheckAndUpdateAsync();
+            };
+            _updateTimer.Start();
         }
 
         private void ApplyCommand(ScreenCommand command)
@@ -923,6 +940,8 @@ namespace VideoWall.Viewer
             _liveViewServer?.Dispose();
             _layoutQueryServer?.Dispose();
             _beacon?.Dispose();
+            _updateTimer?.Stop();
+            _updater?.Dispose();
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

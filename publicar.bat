@@ -22,9 +22,10 @@ echo [2/3] Publicando Terminal (framework-dependent, arquivo unico)...
 if errorlevel 1 goto erro
 
 echo.
-echo Copiando binario do terminal para o central servir (auto-update LAN)...
-if not exist "%CTRL%\terminal-update" mkdir "%CTRL%\terminal-update"
-copy /Y "%TERM%\VideoWall.Viewer.exe" "%CTRL%\terminal-update\" >nul
+REM O central distribui o INSTALADOR do terminal pela rede, baixando-o do GitHub
+REM sozinho (cache em %%LocalAppData%%). Nada de terminal-update no pacote - se
+REM sobrou de uma versao antiga, some com ele para nao inchar o instalador.
+if exist "%CTRL%\terminal-update" rmdir /s /q "%CTRL%\terminal-update"
 
 echo.
 echo [3/3] Gerando instaladores (Inno Setup)...
