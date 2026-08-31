@@ -585,6 +585,7 @@ namespace VideoWall.ViewModels
         public ICommand SendLayoutToScreenCommand { get; }
         public ICommand ClearScreenCommand { get; }
         public ICommand RestartScreenCommand { get; }
+        public ICommand RestartAllScreensCommand { get; }
         public ICommand ToggleOverlayCommand { get; }
         public ICommand RemoveSelectedCommand { get; }
         public ICommand BringToFrontCommand { get; }
@@ -648,6 +649,7 @@ namespace VideoWall.ViewModels
                 () => SelectedScreen != null && Elements.Count > 0);
             ClearScreenCommand = new RelayCommand(ClearScreen, () => SelectedScreen != null);
             RestartScreenCommand = new RelayCommand(RestartScreen, () => SelectedScreen != null);
+            RestartAllScreensCommand = new RelayCommand(RestartAllScreens, () => RemoteScreens.Count > 0);
             ToggleOverlayCommand = new RelayCommand(ToggleOverlay, () => SelectedScreen != null);
             RemoveSelectedCommand = new RelayCommand(RemoveSelected, () => SelectedElement != null);
             BringToFrontCommand = new RelayCommand(BringToFront, () => SelectedElement != null);
@@ -890,6 +892,11 @@ namespace VideoWall.ViewModels
 
                 // Atualiza o texto do botão de overlay (estado do terminal selecionado).
                 OnPropertyChanged(nameof(OverlayStatus));
+
+                // Telas entram e saem sozinhas (anúncio de rede), sem nenhuma interação do
+                // usuário: sem isto, botões que dependem de haver telas ("Atualizar TODAS
+                // as telas") só habilitariam no próximo clique em algum lugar.
+                CommandManager.InvalidateRequerySuggested();
             });
         }
 
@@ -1097,6 +1104,47 @@ namespace VideoWall.ViewModels
             {
                 StatusMessage = $"Falha ao reiniciar {screen.Name}: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Reinicia TODAS as telas da rede — o jeito de aplicar uma versão nova na parede
+        /// inteira sem acessar mini-PC por mini-PC. Uma de cada vez, com intervalo, para a
+        /// parede não apagar toda de uma vez (e para os terminais não baixarem o
+        /// instalador todos no mesmo instante). Cada tela volta exibindo o mesmo layout,
+        /// já logada, porque o terminal salva e restaura o que estava no ar.
+        /// </summary>
+        private async void RestartAllScreens()
+        {
+            var screens = RemoteScreens.ToList();
+            if (screens.Count == 0)
+            {
+                StatusMessage = "Nenhuma tela na rede para reiniciar.";
+                return;
+            }
+
+            int ok = 0;
+            for (int i = 0; i < screens.Count; i++)
+            {
+                var screen = screens[i];
+                StatusMessage = $"Reiniciando {screen.Name} ({i + 1}/{screens.Count})…";
+                try
+                {
+                    await CommandSender.SendAsync(screen.IpAddress, screen.ControlPort,
+                        new ScreenCommand { Type = ScreenCommand.Restart });
+                    ok++;
+                }
+                catch
+                {
+                    // Tela fora do ar: segue para as próximas em vez de abortar a parede.
+                }
+
+                if (i < screens.Count - 1)
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+            }
+
+            StatusMessage = ok == screens.Count
+                ? $"Reiniciando {ok} tela(s) — cada uma volta já na versão nova."
+                : $"Reiniciando {ok} de {screens.Count} tela(s); as demais não responderam.";
         }
 
         /// <summary>
