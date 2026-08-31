@@ -1730,8 +1730,31 @@ namespace VideoWall.ViewModels
 
         private void StartRotation()
         {
-            if (IsRotating || RotationLayouts.Count == 0 || RotationScreen == null || RotationMinutes < 1)
+            if (IsRotating)
                 return;
+
+            // Antes isto saía calado quando faltava algo, e o usuário ficava sem saber por
+            // que "não funcionou". Cada recusa agora diz o que fazer.
+            if (RotationScreen == null)
+            {
+                RotationStatus = "Escolha a TELA da rotação.";
+                return;
+            }
+            if (RotationLayouts.Count == 0)
+            {
+                RotationStatus = "Adicione ao menos um layout à sequência.";
+                return;
+            }
+            if (RotationLayouts.Count == 1)
+            {
+                RotationStatus = "Só há 1 layout na sequência — adicione outro para haver troca.";
+                return;
+            }
+            if (RotationMinutes < 1)
+            {
+                RotationStatus = "O intervalo mínimo é 1 minuto.";
+                return;
+            }
 
             IsRotating = true;
             _rotationIndex = 0;

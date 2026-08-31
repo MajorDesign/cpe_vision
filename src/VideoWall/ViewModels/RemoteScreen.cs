@@ -27,6 +27,11 @@ namespace VideoWall.ViewModels
         /// <summary>Overlay de vídeo por hardware ligado neste terminal (vindo do anúncio).</summary>
         public bool OverlayOn => Info.HardwareOverlay;
 
+        /// <summary>Endereço + versão do terminal, como aparece na lista de telas.</summary>
+        public string Address => string.IsNullOrEmpty(Info.Version)
+            ? Info.IpAddress
+            : $"{Info.IpAddress}  ·  v{Info.Version}";
+
         /// <summary>Layout atualmente transmitido (coords em tela 16:9, p/ a miniatura).</summary>
         public ObservableCollection<WallElement> Layout { get; } = new();
 
@@ -44,6 +49,7 @@ namespace VideoWall.ViewModels
             Info = info;
             OnPropertyChanged(nameof(Name));
             OnPropertyChanged(nameof(IpAddress));
+            OnPropertyChanged(nameof(Address));
             OnPropertyChanged(nameof(OverlayOn));
         }
 

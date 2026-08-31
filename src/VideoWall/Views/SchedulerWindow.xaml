@@ -13,6 +13,37 @@
     </Window.Resources>
 
     <Border Background="{StaticResource CardInk}" Margin="16">
+      <DockPanel>
+        <!-- Barra de ações FIXA no rodapé: antes ela ficava no fim da área rolável e
+             saía da tela, então a rotação era montada e nunca iniciada. -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource InputBg}"
+                BorderBrush="{StaticResource HairDark}" BorderThickness="0,1,0,0" Padding="16,12">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="▶ Iniciar rotação" Width="160" Margin="0,0,8,0"
+                            Command="{Binding StartRotationCommand}" Style="{StaticResource PanelButton}"
+                            ToolTip="Começa a alternar os layouts da sequência na tela escolhida"/>
+                    <Button Content="■ Parar" Width="100"
+                            Command="{Binding StopRotationCommand}" Style="{StaticResource SubtleButton}"/>
+                    <Ellipse Width="9" Height="9" Margin="14,0,8,0" VerticalAlignment="Center"
+                             Fill="{StaticResource Gold}"/>
+                    <TextBlock Text="{Binding RotationStatus}" Foreground="{StaticResource OnDark}"
+                               FontFamily="Consolas" FontSize="12" VerticalAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="330"/>
+                </StackPanel>
+
+                <TextBlock Text="A rotação funciona enquanto o controlador estiver aberto (pode ficar minimizado)."
+                           Foreground="{StaticResource OnDarkMuted}" FontSize="11" Margin="0,8,0,0"/>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <Button Content="{Binding SchedulerToggleText}" Width="210" Margin="0,0,8,0"
+                            Command="{Binding ToggleSchedulerCommand}" Style="{StaticResource SubtleButton}"
+                            ToolTip="Pausa/retoma os agendamentos POR HORÁRIO (a rotação tem o próprio Parar)"/>
+                    <Button Content="Fechar" Width="100" Click="OnClose" Style="{StaticResource SubtleButton}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="16">
             <StackPanel>
                 <!-- ============ POR HORÁRIO ============ -->
@@ -100,8 +131,10 @@
 
                 <!-- ============ ROTAÇÃO AUTOMÁTICA ============ -->
                 <TextBlock Text="ROTAÇÃO AUTOMÁTICA" Style="{StaticResource SectionLabel}" Margin="0,0,0,2"/>
-                <TextBlock Text="Troca entre vários layouts a cada X minutos (com play)"
-                           Foreground="{StaticResource OnDark}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <TextBlock Text="Alterna layouts numa tela, a cada X minutos"
+                           Foreground="{StaticResource OnDark}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock Text="1. escolha a tela e o intervalo   ·   2. monte a sequência de layouts   ·   3. clique em ▶ Iniciar rotação"
+                           Foreground="{StaticResource OnDarkMuted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -144,25 +177,10 @@
                             Command="{Binding RemoveRotationLayoutCommand}" Style="{StaticResource SubtleButton}"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                    <Button Content="▶ Iniciar rotação" Width="160" Margin="0,0,8,0"
-                            Command="{Binding StartRotationCommand}" Style="{StaticResource PanelButton}"/>
-                    <Button Content="■ Parar" Width="100"
-                            Command="{Binding StopRotationCommand}" Style="{StaticResource SubtleButton}"/>
-                    <Ellipse Width="9" Height="9" Margin="14,0,8,0" VerticalAlignment="Center"
-                             Fill="{StaticResource Gold}"/>
-                    <TextBlock Text="{Binding RotationStatus}" Foreground="{StaticResource OnDarkMuted}"
-                               FontFamily="Consolas" FontSize="12" VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <Separator Margin="0,18,0,12" Background="{StaticResource HairDark}"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="{Binding SchedulerToggleText}" Width="210" Margin="0,0,8,0"
-                            Command="{Binding ToggleSchedulerCommand}" Style="{StaticResource PanelButton}"
-                            ToolTip="Pausa/retoma os agendamentos POR HORÁRIO (a rotação tem o próprio Parar)"/>
-                    <Button Content="Fechar" Width="100" Click="OnClose" Style="{StaticResource SubtleButton}"/>
-                </StackPanel>
+                <TextBlock Text="Pronto? Clique em ▶ Iniciar rotação, no rodapé desta janela."
+                           Foreground="{StaticResource Gold}" FontSize="12" Margin="0,12,0,4"/>
             </StackPanel>
         </ScrollViewer>
+      </DockPanel>
     </Border>
 </Window>

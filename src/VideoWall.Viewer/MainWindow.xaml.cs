@@ -39,7 +39,13 @@ namespace VideoWall.Viewer
         // É o que permite a rotação de layouts sem recarregar nem deslogar as páginas.
         private readonly Dictionary<string, WebView2> _parked = new(StringComparer.Ordinal);
         private readonly List<string> _parkOrder = new();   // ordem de uso, p/ descartar as antigas
-        private const int MaxParkedPages = 4;
+
+        /// <summary>
+        /// Quantas páginas ficam vivas fora do ar. Precisa cobrir a soma das células dos
+        /// layouts que se alternam (ex.: 4 câmeras + 4 do sistema): abaixo disso, a página
+        /// do sistema seria descartada no meio da rotação e voltaria pedindo login.
+        /// </summary>
+        private const int MaxParkedPages = 8;
 
         // Servidores que não conseguiram subir (porta ocupada) e seguem sendo tentados.
         private readonly List<(string Nome, Action Iniciar)> _pendingServers = new();
@@ -97,6 +103,7 @@ namespace VideoWall.Viewer
                 IpAddress = ip,
                 ControlPort = ScreenCommand.DefaultPort,
                 HardwareOverlay = TerminalSettings.HardwareVideoOverlay,
+                Version = GitHubUpdater.CurrentVersion().ToString(),
             };
             _beacon = new UdpBeacon(info);
             _beacon.Start();
@@ -359,39 +366,30 @@ namespace VideoWall.Viewer
 
             if (src.Kind == ScreenSource.Browser && Uri.TryCreate(src.Url, UriKind.Absolute, out var uri))
             {
-                if (existing is WebView2 web)
+                // Mesma página que já está na vaga: não mexe em nada.
+                if (existing is WebView2 web && string.Equals(_slotUrls[i], src.Url, StringComparison.Ordinal))
                 {
-                    if (!string.Equals(_slotUrls[i], src.Url, StringComparison.Ordinal))
-                    {
-                        // A vaga mudou de página: antes de recarregar, veja se a página
-                        // pedida já está estacionada (viva, do layout anterior).
-                        if (TryUnpark(src.Url!, out var estacionada))
-                        {
-                            SetSlot(i, estacionada!);
-                            _slotUrls[i] = src.Url;
-                            estacionada!.Tag = src.Zoom;
-                            ApplyCanonicalZoom(estacionada);
-                            return estacionada;
-                        }
-
-                        _slotUrls[i] = src.Url;
-                        try { web.Source = uri; } catch { }
-                    }
                     web.Tag = src.Zoom; // zoom relativo desejado pelo usuário
                     ApplyCanonicalZoom(web);
                     return web;
                 }
 
-                // Vaga vazia ou de outro tipo: reaproveita a página estacionada, se houver.
-                if (TryUnpark(src.Url!, out var reaproveitada))
+                // A vaga vai exibir OUTRA página. Reaproveita a versão estacionada, se
+                // existir — ela volta exatamente como estava (logada, rolada, no mesmo
+                // ponto do sistema). SetSlot estaciona a página que estava aqui.
+                if (TryUnpark(src.Url!, out var estacionada))
                 {
-                    SetSlot(i, reaproveitada!);
+                    SetSlot(i, estacionada!);
                     _slotUrls[i] = src.Url;
-                    reaproveitada!.Tag = src.Zoom;
-                    ApplyCanonicalZoom(reaproveitada);
-                    return reaproveitada;
+                    // NÃO redefine o zoom: preserva o que o operador ajustou ao vivo.
+                    estacionada!.Tag ??= src.Zoom;
+                    ApplyCanonicalZoom(estacionada);
+                    return estacionada;
                 }
 
+                // Primeira vez nesta página: cria uma nova em vez de renavegar a atual —
+                // renavegar destruiria a página que está saindo, que é justamente a que
+                // queremos guardar viva para quando o layout voltar.
                 var nw = new WebView2 { Tag = src.Zoom };
                 // Reaplica o zoom canônico quando o navegador fica pronto e a cada
                 // redimensionamento (mudança de layout) — mantendo a largura lógica fixa.
@@ -532,6 +530,11 @@ namespace VideoWall.Viewer
         {
             web.Visibility = Visibility.Collapsed;
 
+            // Oculta, a página continua baixando vídeo (o Chromium não pausa mídia por
+            // estar escondida). Numa parede com lives isso seria banda e CPU jogadas
+            // fora — pausa aqui e o KeepPlayingScript volta a tocar ao reaparecer.
+            RunScript(web, "document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})");
+
             // Já havia uma página estacionada para esta URL: fica com a mais recente.
             if (_parked.TryGetValue(url, out var anterior) && !ReferenceEquals(anterior, web))
                 Discard(anterior);
@@ -559,8 +562,20 @@ namespace VideoWall.Viewer
 
             _parkOrder.Remove(url);
             achada.Visibility = Visibility.Visible;
+            RunScript(achada, "document.querySelectorAll('video').forEach(function(v){try{v.play()}catch(e){}})");
             web = achada;
             return true;
+        }
+
+        /// <summary>Executa um script na página, se ela já estiver pronta. Nunca lança.</summary>
+        private static async void RunScript(WebView2 web, string js)
+        {
+            try
+            {
+                if (web.CoreWebView2 is { } core)
+                    await core.ExecuteScriptAsync(js);
+            }
+            catch { /* página descartada / ainda inicializando */ }
         }
 
         private void Discard(WebView2 web)

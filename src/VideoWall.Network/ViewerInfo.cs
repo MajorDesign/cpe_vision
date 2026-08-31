@@ -27,6 +27,13 @@ namespace VideoWall.Network
         /// (para o controlador mostrar o estado no botão).</summary>
         public bool HardwareOverlay { get; set; }
 
+        /// <summary>
+        /// Versão do terminal (ex.: "1.47.0"). Sem isto, descobrir em que versão está
+        /// cada tela exigia ir ao mini-PC olhar o pré-load — e uma tela desatualizada
+        /// explica quase todo comportamento "estranho" da parede.
+        /// </summary>
+        public string Version { get; set; } = string.Empty;
+
         /// <summary>Momento do último anúncio recebido (preenchido pelo listener).</summary>
         [JsonIgnore]
         public DateTime LastSeenUtc { get; set; }
