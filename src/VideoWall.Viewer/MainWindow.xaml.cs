@@ -293,7 +293,15 @@ namespace VideoWall.Viewer
                             CoreWebView2HostResourceAccessKind.Allow);
                     }
                     catch { }
+                    // Esconde a interface do YouTube (logo, cabeçalho, título) e mantém a
+                    // live tocando, quando a célula cai na página "watch" — o script se
+                    // desliga sozinho em qualquer página que não seja do YouTube.
+                    try { _ = nw.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(YouTubeLive.KeepPlayingScript); } catch { }
                 };
+                // ...e coloca o player em tela cheia dentro da célula, para não sobrar
+                // nada do site em volta do vídeo na TV.
+                var fullscreen = new YouTubeFullscreen(nw);
+                nw.Unloaded += (_, _) => fullscreen.Dispose();
                 nw.SizeChanged += (_, _) => ApplyCanonicalZoom(nw);
                 nw.Source = uri;
                 SetSlot(i, nw);

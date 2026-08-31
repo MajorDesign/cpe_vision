@@ -23,8 +23,7 @@ namespace VideoWall.Viewer
     internal sealed class OverlayWindow : Window
     {
         private readonly WebView2 _web;
-        private readonly DispatcherTimer _fullscreenTimer;
-        private int _fsAttempts;
+        private readonly YouTubeFullscreen _fullscreen;
         private string? _url;
 
         public OverlayWindow(Window owner)
@@ -57,52 +56,9 @@ namespace VideoWall.Viewer
             };
             Content = _web;
 
-            // Quando a live cai na página do YouTube (embed bloqueado), entra em tela
-            // cheia sozinha (tecla F do player) — o vídeo preenche o quadro, sem cabeçalho.
-            // Entrada via CDP conta como gesto do usuário, permitindo o fullscreen.
-            _fullscreenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _fullscreenTimer.Tick += (_, _) => EnsureFullscreen();
-            _fullscreenTimer.Start();
-        }
-
-        /// <summary>
-        /// Se a página atual for do YouTube e ainda não estiver em tela cheia, envia a
-        /// tecla "F" (atalho de tela cheia do player) via CDP. Repetir é seguro: quando
-        /// já está em tela cheia, não faz nada.
-        /// </summary>
-        private async void EnsureFullscreen()
-        {
-            var core = _web.CoreWebView2;
-            if (core == null) return;
-
-            try
-            {
-                // Já em tela cheia: PARA o timer. Ficar reenviando F entraria/sairia da
-                // tela cheia e re-bufferizaria a live (ficava 'sempre carregando').
-                if (core.ContainsFullScreenElement)
-                {
-                    _fullscreenTimer.Stop();
-                    return;
-                }
-
-                var src = core.Source ?? string.Empty;
-                if (src.IndexOf("youtube.com", StringComparison.OrdinalIgnoreCase) < 0)
-                    return;
-
-                // Limite de tentativas: se não entrar em tela cheia, desiste (o CSS já
-                // esconde o cabeçalho) — evita ficar tentando para sempre.
-                if (_fsAttempts++ >= 6)
-                {
-                    _fullscreenTimer.Stop();
-                    return;
-                }
-
-                const string down = "{\"type\":\"keyDown\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
-                const string up = "{\"type\":\"keyUp\",\"windowsVirtualKeyCode\":70,\"key\":\"f\",\"code\":\"KeyF\"}";
-                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", down);
-                await core.CallDevToolsProtocolMethodAsync("Input.dispatchKeyEvent", up);
-            }
-            catch { /* tenta de novo no próximo tick */ }
+            // Quando a live cai na página do YouTube (incorporação bloqueada), entra em
+            // tela cheia sozinha — o vídeo preenche o quadro, sem cabeçalho nem logo.
+            _fullscreen = new YouTubeFullscreen(_web);
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -141,7 +97,7 @@ namespace VideoWall.Viewer
         /// <summary>Libera o WebView2 e fecha a janela.</summary>
         public void CloseOverlay()
         {
-            try { _fullscreenTimer.Stop(); } catch { }
+            try { _fullscreen.Dispose(); } catch { }
             try { _web.Dispose(); } catch { }
             try { Close(); } catch { }
         }

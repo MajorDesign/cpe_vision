@@ -267,6 +267,21 @@ do cliente têm **incorporação desativada**, então o `player.html` (mapeado n
 interface e entra em tela cheia via CDP. Se algum dia ativarem a incorporação no Studio,
 o caminho limpo do embed volta sozinho.
 
+**Tela cheia da live é obrigatória, não cosmética.** Na página `watch` o vídeo vem
+cercado por cabeçalho, logo e título do YouTube — inaceitável numa TV de operação. Só o
+atalho **F** do player entra em tela cheia de forma confiável, e ele exige gesto do
+usuário, que num quiosque não existe: por isso a tecla é enviada por **CDP**, que conta
+como gesto. [`YouTubeFullscreen`](src/VideoWall.Viewer/YouTubeFullscreen.cs) centraliza
+isso e vale para **as células da parede e para a live sobreposta**. O laço é oportunista:
+tenta enquanto não está em tela cheia e **para ao conseguir** — reenviar F com o player
+já em tela cheia o tira de lá e faz a live re-bufferizar (era o sintoma de "sempre
+carregando"). Perdeu a tela cheia (navegação, recarga, anúncio)? O evento
+`ContainsFullScreenElementChanged` re-arma o laço; é isso que faz o "sempre" durar o dia
+inteiro. Em página que não é do YouTube o laço não faz nada — enviar F ali digitaria a
+letra num campo de texto. Efeito colateral conhecido: com o player em tela cheia, a
+camada SVG de marcações fica atrás dele (o elemento em fullscreen cobre a página), então
+marcar sobre uma live não funciona.
+
 **Vídeo pesado disputa a GPU.** Live + dashboard WebGL no mesmo mini-PC engasgam. Existem
 o botão de overlay de vídeo por hardware (mais leve, mas preto em algumas placas) e a
 trava de qualidade da live. A solução robusta continua sendo **separar dashboard e
