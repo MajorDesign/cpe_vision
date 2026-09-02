@@ -748,6 +748,52 @@ namespace VideoWall.ViewModels
         /// bem mais devagar: a tela selecionada é a única que alimenta a
         /// pré-visualização grande, recortada célula a célula.
         /// </summary>
+        // Telas já avisadas há pouco, para não pedir a mesma coisa a cada ciclo.
+        private readonly Dictionary<string, DateTime> _avisosDeUpdate = new();
+        private static readonly TimeSpan EsperaEntreAvisos = TimeSpan.FromMinutes(10);
+
+        /// <summary>
+        /// Avisa UMA tela desatualizada por ciclo para buscar a versão nova.
+        ///
+        /// Sozinha, cada tela só verifica a cada 30 minutos, e como cada uma tem seu
+        /// próprio relógio, uma parede acabava com telas em versões diferentes por meia
+        /// hora — foi o que aconteceu em campo. O central já sabe a versão de cada tela
+        /// (elas anunciam) e a que ele serve, então é ele quem puxa o assunto.
+        ///
+        /// Uma por vez, de propósito: oito telas baixando 60 MB ao mesmo tempo
+        /// castigariam a rede do cliente.
+        /// </summary>
+        private void NudgeOutdatedScreens()
+        {
+            var pacote = _terminalPackages?.Current();
+            if (pacote == null)
+                return;
+
+            RemoteScreen? atrasada = null;
+            foreach (var screen in RemoteScreens.ToList())
+            {
+                // Tela anterior à 1.47 não anuncia versão: não dá para saber, e ela
+                // também não entenderia o pedido.
+                bool desatualizada = Version.TryParse(screen.Info.Version, out var atual) &&
+                                     atual < pacote.Version;
+                screen.Outdated = desatualizada;   // fica visível na lista de telas
+                if (!desatualizada)
+                    continue;
+
+                atrasada ??= screen;
+
+                if (_avisosDeUpdate.TryGetValue(screen.Id, out var quando) &&
+                    DateTime.UtcNow - quando < EsperaEntreAvisos)
+                    continue;
+
+                _avisosDeUpdate[screen.Id] = DateTime.UtcNow;
+                _ = CommandSender.SendAsync(screen.IpAddress, screen.ControlPort,
+                        new ScreenCommand { Type = ScreenCommand.Update });
+                StatusMessage = $"{screen.Name} está na {atual} — pedindo atualização para {pacote.Version}.";
+                return;   // uma por ciclo: evita várias telas baixando 60 MB juntas
+            }
+        }
+
         private async void PollThumbnails()
         {
             if (_pollingThumbnails)
@@ -758,6 +804,8 @@ namespace VideoWall.ViewModels
             // deixar a parede visível de lado enquanto se trabalha em outra janela.)
             if (!IsControllerOnScreen())
                 return;
+
+            NudgeOutdatedScreens();
 
             _thumbnailTick++;
             bool slowRound = _thumbnailTick % ThumbnailSlowFactor == 0;

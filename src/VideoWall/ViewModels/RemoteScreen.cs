@@ -28,9 +28,29 @@ namespace VideoWall.ViewModels
         public bool OverlayOn => Info.HardwareOverlay;
 
         /// <summary>Endereço + versão do terminal, como aparece na lista de telas.</summary>
-        public string Address => string.IsNullOrEmpty(Info.Version)
-            ? Info.IpAddress
-            : $"{Info.IpAddress}  ·  v{Info.Version}";
+        public string Address
+        {
+            get
+            {
+                string texto = string.IsNullOrEmpty(Info.Version)
+                    ? Info.IpAddress
+                    : $"{Info.IpAddress}  ·  v{Info.Version}";
+                return Outdated ? texto + "  ·  atualizando…" : texto;
+            }
+        }
+
+        private bool _outdated;
+
+        /// <summary>
+        /// Esta tela está numa versão anterior à que o central serve. Fica à vista na
+        /// lista porque uma parede com telas em versões diferentes se comporta de um
+        /// jeito na tela A e de outro na B — e isso precisa ser óbvio, não descoberto.
+        /// </summary>
+        public bool Outdated
+        {
+            get => _outdated;
+            set { if (SetProperty(ref _outdated, value)) OnPropertyChanged(nameof(Address)); }
+        }
 
         /// <summary>Layout atualmente transmitido (coords em tela 16:9, p/ a miniatura).</summary>
         public ObservableCollection<WallElement> Layout { get; } = new();

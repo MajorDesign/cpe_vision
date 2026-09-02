@@ -34,6 +34,16 @@ namespace VideoWall.Network
         /// (o terminal guarda a preferência e a aplica ao reabrir).</summary>
         public const string ToggleOverlay = "toggle-overlay";
 
+        /// <summary>
+        /// Manda o terminal buscar atualização AGORA.
+        ///
+        /// Sozinho, ele só pergunta a cada 30 minutos — e como cada tela tem seu
+        /// próprio relógio, uma podia ficar meia hora atrás da outra. O central sabe
+        /// a versão de cada tela (elas anunciam) e a que ele serve, então avisa
+        /// quem está atrasado em vez de esperar a tela perceber.
+        /// </summary>
+        public const string Update = "update";
+
         /// <summary>Porta TCP padrão do canal de comando dos terminais.</summary>
         public const int DefaultPort = 48011;
     }

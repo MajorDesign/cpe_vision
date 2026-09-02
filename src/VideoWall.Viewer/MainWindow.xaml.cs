@@ -217,6 +217,11 @@ namespace VideoWall.Viewer
                     RestartSelf();
                     break;
 
+                case ScreenCommand.Update:
+                    // O central percebeu que esta tela está atrasada.
+                    _ = _updater?.CheckAndUpdateAsync(forcar: true);
+                    break;
+
                 case ScreenCommand.ToggleOverlay:
                     // Inverte a preferência do overlay de vídeo e reinicia para aplicar.
                     TerminalSettings.SetHardwareVideoOverlay(!TerminalSettings.HardwareVideoOverlay);

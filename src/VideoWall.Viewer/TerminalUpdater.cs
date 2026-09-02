@@ -91,7 +91,12 @@ namespace VideoWall.Viewer
         /// Retorna verdadeiro quando a atualização foi iniciada — a partir daí o
         /// instalador fecha este processo e o reabre já atualizado.
         /// </summary>
-        public async Task<bool> CheckAndUpdateAsync()
+        /// <param name="forcar">
+        /// Verificação PEDIDA (botão do painel ou aviso do central): ignora a espera de
+        /// 2 h por versão já tentada. Essa espera existe para não repetir sozinho um
+        /// download de 60 MB que não pegou — mas quando alguém pede, é para tentar.
+        /// </param>
+        public async Task<bool> CheckAndUpdateAsync(bool forcar = false)
         {
             if (_busy || _installing)
                 return false;
@@ -115,7 +120,7 @@ namespace VideoWall.Viewer
                 // Esta versão já foi baixada e entregue há pouco, e mesmo assim ainda
                 // estamos na versão antiga: a instalação não pegou. Baixar de novo agora
                 // só repetiria o ciclo (e os 60 MB).
-                if (RecentlyAttempted(source.Value.Version))
+                if (!forcar && RecentlyAttempted(source.Value.Version))
                     return false;
 
                 await DownloadAsync(source.Value.Url).ConfigureAwait(false);

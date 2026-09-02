@@ -138,5 +138,5 @@ antes de "consertar" alguma delas:
 
 ## Estado atual
 
-Versão **1.55.0**. Fases A (parede local) e D (rede, controle remoto, auto-update)
+Versão **1.56.0**. Fases A (parede local) e D (rede, controle remoto, auto-update)
 concluídas. O que falta está no fim de [ARQUITETURA.md](ARQUITETURA.md#o-que-falta).
