@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,8 +11,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\cpe.ico</ApplicationIcon>
-    <!-- VersÃ£o do controlador. Suba este nÃºmero antes de publicar uma atualizaÃ§Ã£o. -->
-    <Version>1.52.0</Version>
+    <!-- Versão do controlador. Suba este número antes de publicar uma atualização. -->
+    <Version>1.53.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

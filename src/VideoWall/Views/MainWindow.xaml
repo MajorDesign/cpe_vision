@@ -109,7 +109,11 @@
                     <Separator Margin="0,8" Background="{StaticResource HairDark}"/>
 
                     <!-- Layouts (Assistente Visual) -->
-                    <TextBlock Text="LAYOUTS" Style="{StaticResource SectionLabel}" Margin="0,4,0,8"/>
+                    <TextBlock Text="LAYOUTS" Style="{StaticResource SectionLabel}" Margin="0,4,0,2"/>
+                    <!-- Cada terminal tem os seus layouts; deixar isso a vista evita
+                         salvar a parede de uma tela achando que e de outra. -->
+                    <TextBlock Text="{Binding LayoutsScopeLabel}" Foreground="{StaticResource Gold}"
+                               FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <ComboBox ItemsSource="{Binding Layouts}"
                               SelectedItem="{Binding SelectedLayoutName}"
                               Margin="0,0,0,8" Padding="6,4"/>

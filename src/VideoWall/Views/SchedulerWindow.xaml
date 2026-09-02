@@ -101,7 +101,8 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="Layout" Style="{StaticResource FieldLabel}"/>
-                        <ComboBox ItemsSource="{Binding Layouts}" SelectedItem="{Binding NewScheduleLayout}" Padding="6,4"/>
+                        <ComboBox ItemsSource="{Binding ScheduleLayouts}" SelectedItem="{Binding NewScheduleLayout}" Padding="6,4"
+                                  ToolTip="Layouts da tela escolhida abaixo"/>
                     </StackPanel>
                 </Grid>
 
@@ -159,7 +160,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <ComboBox Grid.Column="0" ItemsSource="{Binding Layouts}" SelectedItem="{Binding RotationPickLayout}"
+                    <ComboBox Grid.Column="0" ItemsSource="{Binding RotationAvailableLayouts}" SelectedItem="{Binding RotationPickLayout}"
                               Padding="6,4"/>
                     <Button Grid.Column="1" Content="➕ Adicionar" Width="120" Margin="8,0,0,0"
                             Command="{Binding AddRotationLayoutCommand}" Style="{StaticResource SubtleButton}"/>

@@ -84,6 +84,12 @@ namespace VideoWall.ViewModels
         public ObservableCollection<PreviewMonitor> PreviewMonitors { get; } = new();
         public ObservableCollection<WallElement> Elements { get; } = new();
         public ObservableCollection<string> Layouts { get; } = new();
+
+        /// <summary>Layouts da tela escolhida no AGENDAMENTO por horário.</summary>
+        public ObservableCollection<string> ScheduleLayouts { get; } = new();
+
+        /// <summary>Layouts da tela escolhida na ROTAÇÃO.</summary>
+        public ObservableCollection<string> RotationAvailableLayouts { get; } = new();
         public ObservableCollection<SourceFavorite> Favorites { get; } = new();
         public ObservableCollection<string> FavoriteCategories { get; } = new() { "Web", "Imagem" };
         public ObservableCollection<ScheduleEntry> Schedules { get; } = new();
@@ -116,6 +122,9 @@ namespace VideoWall.ViewModels
                 OnPropertyChanged(nameof(EditingTargetLabel));
                 OnPropertyChanged(nameof(HasScreenSelected));
                 OnPropertyChanged(nameof(OverlayStatus));
+                OnPropertyChanged(nameof(LayoutsScopeLabel));
+                // Cada tela tem os seus layouts: a lista acompanha a tela escolhida.
+                RefreshLayouts();
                 RebuildWallGeometry();
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -179,7 +188,12 @@ namespace VideoWall.ViewModels
             set
             {
                 if (SetProperty(ref _newScheduleScreen, value))
+                {
+                    // Os layouts são de cada tela: a lista segue a tela do agendamento,
+                    // e não a que está selecionada no painel principal.
+                    RefreshScopedLayouts(ScheduleLayouts, value);
                     CommandManager.InvalidateRequerySuggested();
+                }
             }
         }
 
@@ -189,7 +203,14 @@ namespace VideoWall.ViewModels
         public RemoteScreen? RotationScreen
         {
             get => _rotationScreen;
-            set { if (SetProperty(ref _rotationScreen, value)) CommandManager.InvalidateRequerySuggested(); }
+            set
+            {
+                if (SetProperty(ref _rotationScreen, value))
+                {
+                    RefreshScopedLayouts(RotationAvailableLayouts, value);
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
         /// <summary>Intervalo (minutos) entre as trocas de layout na rotação.</summary>
@@ -307,7 +328,7 @@ namespace VideoWall.ViewModels
         /// <summary>Carrega um layout salvo na parede (pré-visualização). Não projeta.</summary>
         private bool LoadLayoutByName(string name, bool announce)
         {
-            var loaded = _layoutService.Load(name);
+            var loaded = _layoutService.Load(name, CurrentScreenId);
             if (loaded == null)
             {
                 if (announce) StatusMessage = $"Layout não encontrado: {name}";
@@ -329,6 +350,9 @@ namespace VideoWall.ViewModels
         }
 
         /// <summary>Layout carregado automaticamente ao abrir (fail-safe).</summary>
+        /// <summary>Tela dona do layout principal (layouts pertencem a uma tela).</summary>
+        public string? MainLayoutScreenId { get; private set; }
+
         public string? MainLayoutName
         {
             get => _mainLayoutName;
@@ -634,7 +658,9 @@ namespace VideoWall.ViewModels
             _favoritesService = favoritesService;
             _settingsService = settingsService;
             _scheduleService = scheduleService;
-            _mainLayoutName = _settingsService.Load().MainLayoutName;
+            var cfg = _settingsService.Load();
+            _mainLayoutName = cfg.MainLayoutName;
+            MainLayoutScreenId = cfg.MainLayoutScreenId;
             _monitorService.MonitorsChanged += OnMonitorsChanged;
 
             RefreshCommand = new RelayCommand(RefreshMonitors);
@@ -1348,11 +1374,27 @@ namespace VideoWall.ViewModels
         {
             string? previous = SelectedLayoutName;
             Layouts.Clear();
-            foreach (var name in _layoutService.List())
+            foreach (var name in _layoutService.List(CurrentScreenId))
                 Layouts.Add(name);
 
             SetSelectedLayoutSilent(Layouts.Contains(previous ?? string.Empty) ? previous : Layouts.FirstOrDefault());
         }
+
+        /// <summary>Tela dona dos layouts em edição (cada terminal tem os seus).</summary>
+        private string? CurrentScreenId => SelectedScreen?.Id;
+
+        /// <summary>Recarrega uma lista de layouts para a tela informada.</summary>
+        private void RefreshScopedLayouts(ObservableCollection<string> destino, RemoteScreen? screen)
+        {
+            destino.Clear();
+            foreach (var nome in _layoutService.List(screen?.Id))
+                destino.Add(nome);
+        }
+
+        /// <summary>De quem são os layouts listados — a regra precisa estar à vista.</summary>
+        public string LayoutsScopeLabel => SelectedScreen == null
+            ? "Escolha uma tela para ver e salvar os layouts dela"
+            : $"Layouts de {SelectedScreen.Name}";
 
         private void SaveLayout()
         {
@@ -1360,10 +1402,19 @@ namespace VideoWall.ViewModels
             if (string.IsNullOrWhiteSpace(name))
                 return;
 
-            _layoutService.Save(name, Elements);
+            // Layout pertence a uma tela. Salvar sem tela escolhida criaria um layout
+            // órfão, que apareceria na lista de todas elas — exatamente a mistura que
+            // não pode acontecer numa parede com vários terminais.
+            if (SelectedScreen == null)
+            {
+                StatusMessage = "Escolha primeiro a tela em TELAS NA REDE: o layout é salvo para ela.";
+                return;
+            }
+
+            _layoutService.Save(name, CurrentScreenId, Elements);
             RefreshLayouts();
             SetSelectedLayoutSilent(name);
-            StatusMessage = $"Layout salvo: {name}";
+            StatusMessage = $"Layout salvo em {SelectedScreen.Name}: {name}";
         }
 
         private void LoadLayout()
@@ -1378,7 +1429,7 @@ namespace VideoWall.ViewModels
                 return;
 
             string name = SelectedLayoutName;
-            _layoutService.Delete(name);
+            _layoutService.Delete(name, CurrentScreenId);
 
             // Se era o layout principal, limpa a referência.
             if (string.Equals(MainLayoutName, name, StringComparison.CurrentCultureIgnoreCase))
@@ -1401,7 +1452,14 @@ namespace VideoWall.ViewModels
         private void PersistMainLayout(string? name)
         {
             MainLayoutName = name;
-            _settingsService.Save(new AppSettings { MainLayoutName = name });
+            // Guarda também de QUAL tela é o layout principal: sem isso, ao reabrir o
+            // controlador ele procuraria o nome entre os layouts sem dono e não acharia.
+            MainLayoutScreenId = name == null ? null : CurrentScreenId;
+            _settingsService.Save(new AppSettings
+            {
+                MainLayoutName = name,
+                MainLayoutScreenId = MainLayoutScreenId,
+            });
         }
 
         /// <summary>Carrega o layout na posição informada (atalhos Ctrl+1..9).</summary>
@@ -1423,7 +1481,7 @@ namespace VideoWall.ViewModels
             if (string.IsNullOrWhiteSpace(MainLayoutName))
                 return;
 
-            var loaded = _layoutService.Load(MainLayoutName);
+            var loaded = _layoutService.Load(MainLayoutName, MainLayoutScreenId);
             if (loaded == null)
                 return;
 
@@ -1689,7 +1747,7 @@ namespace VideoWall.ViewModels
 
         private void FireSchedule(ScheduleEntry entry)
         {
-            var loaded = _layoutService.Load(entry.LayoutName);
+            var loaded = _layoutService.Load(entry.LayoutName, entry.ScreenId);
             if (loaded == null)
             {
                 StatusMessage = $"Agendamento {entry.TimeText}: layout '{entry.LayoutName}' não encontrado.";
@@ -1798,7 +1856,7 @@ namespace VideoWall.ViewModels
                 return;
             }
 
-            var loaded = _layoutService.Load(name);
+            var loaded = _layoutService.Load(name, RotationScreen?.Id);
             if (loaded == null)
             {
                 RotationStatus = $"Layout '{name}' não encontrado.";
