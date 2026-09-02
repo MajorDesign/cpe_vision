@@ -539,6 +539,7 @@ namespace VideoWall.Viewer
                     // live tocando, quando a célula cai na página "watch" — o script se
                     // desliga sozinho em qualquer página que não seja do YouTube.
                     try { _ = nw.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(YouTubeLive.KeepPlayingScript); } catch { }
+                    try { nw.CoreWebView2.ProcessFailed += (_, e) => OnBrowserProcessFailed(nw, e); } catch { }
                 };
                 // ...e coloca o player em tela cheia dentro da célula, para não sobrar
                 // nada do site em volta do vídeo na TV.
@@ -599,6 +600,30 @@ namespace VideoWall.Viewer
             SetSlot(i, empty);
             _slotUrls[i] = null;
             return empty;
+        }
+
+        /// <summary>
+        /// Um processo do WebView2 morreu (a aba, a GPU ou o navegador inteiro).
+        ///
+        /// Sem tratar, a célula simplesmente apaga ou pisca e não fica rastro nenhum —
+        /// numa TV sem ninguém por perto isso vira "a tela pisca de vez em quando", sem
+        /// como investigar. Aqui a falha vai para o log com o tipo e o motivo, e a
+        /// página volta sozinha quando o que morreu foi só a aba.
+        /// </summary>
+        private void OnBrowserProcessFailed(WebView2 web, CoreWebView2ProcessFailedEventArgs e)
+        {
+            string alvo = _slots.IndexOf(web) is var idx && idx >= 0 ? $"célula {idx}" : "célula desconhecida";
+            ErrorLog.Write(
+                $"WebView2 falhou na {alvo}: tipo={e.ProcessFailedKind}, motivo={e.Reason}, " +
+                $"saída={e.ExitCode}, processo={e.ProcessDescription}", null);
+
+            // Processo de GPU ou utilitário: o WebView2 se recompõe sozinho (pode piscar).
+            // Só a morte da aba exige recarregar para a célula não ficar em branco.
+            if (e.ProcessFailedKind != CoreWebView2ProcessFailedKind.RenderProcessExited)
+                return;
+
+            try { web.CoreWebView2?.Reload(); }
+            catch (Exception ex) { ErrorLog.Write("Falha ao recarregar a célula após queda do navegador", ex); }
         }
 
         private void EnsureSlotCapacity(int i)

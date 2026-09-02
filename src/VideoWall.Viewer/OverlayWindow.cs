@@ -53,6 +53,20 @@ namespace VideoWall.Viewer
                 // Mantém a live tocando e remove popups quando cai na página do YouTube.
                 try { _ = _web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(YouTubeLive.KeepPlayingScript); }
                 catch { }
+                // Queda de processo aqui apaga a live sem deixar rastro: registra e,
+                // se foi a aba que morreu, recarrega.
+                try
+                {
+                    _web.CoreWebView2.ProcessFailed += (_, args) =>
+                    {
+                        ErrorLog.Write(
+                            $"WebView2 falhou na live sobreposta: tipo={args.ProcessFailedKind}, " +
+                            $"motivo={args.Reason}, saída={args.ExitCode}", null);
+                        if (args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited)
+                            try { _web.CoreWebView2?.Reload(); } catch { }
+                    };
+                }
+                catch { }
             };
             Content = _web;
 
