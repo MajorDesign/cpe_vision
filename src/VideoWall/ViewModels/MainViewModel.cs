@@ -19,20 +19,17 @@ namespace VideoWall.ViewModels
         private readonly IFavoritesService _favoritesService;
         private readonly ISettingsService _settingsService;
         private readonly IScheduleService _scheduleService;
-        private readonly DispatcherTimer _scheduleTimer;
         private readonly DispatcherTimer _thumbnailTimer;
 
         /// <summary>Telas não selecionadas só tiram foto a cada N ciclos (3s × 5 = 15s).</summary>
         private const int ThumbnailSlowFactor = 5;
         private int _thumbnailTick;
-        private readonly DispatcherTimer _rotationTimer;
         private readonly ViewerDiscoveryListener _discovery;
         private RemoteScreen? _rotationScreen;
         private int _rotationMinutes = 5;
         private string? _rotationPickLayout;
         private string? _selectedRotationLayout;
         private bool _isRotating;
-        private int _rotationIndex;
         private string _rotationStatus = "Parado";
         private bool _schedulerPaused;
         private UdpBeacon? _controllerBeacon;
@@ -208,6 +205,8 @@ namespace VideoWall.ViewModels
                 if (SetProperty(ref _rotationScreen, value))
                 {
                     RefreshScopedLayouts(RotationAvailableLayouts, value);
+                    OnPropertyChanged(nameof(ScheduleScopeLabel));
+                    _ = LoadScheduleFromScreenAsync(value);   // mostra o que já está programado nela
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -629,6 +628,7 @@ namespace VideoWall.ViewModels
         public ICommand RemoveScheduleCommand { get; }
         public ICommand AddRotationLayoutCommand { get; }
         public ICommand RemoveRotationLayoutCommand { get; }
+        public ICommand SaveScheduleCommand { get; }
         public ICommand StartRotationCommand { get; }
         public ICommand StopRotationCommand { get; }
         public ICommand ToggleSchedulerCommand { get; }
@@ -696,6 +696,8 @@ namespace VideoWall.ViewModels
             RemoveScheduleCommand = new RelayCommand(RemoveSchedule, () => SelectedSchedule != null);
             AddRotationLayoutCommand = new RelayCommand(AddRotationLayout, () => !string.IsNullOrWhiteSpace(RotationPickLayout));
             RemoveRotationLayoutCommand = new RelayCommand(RemoveRotationLayout, () => SelectedRotationLayout != null);
+            SaveScheduleCommand = new RelayCommand(async () => await SaveScheduleAsync(),
+                () => ScheduleTargetScreen != null);
             StartRotationCommand = new RelayCommand(StartRotation,
                 () => !IsRotating && RotationLayouts.Count >= 1 && RotationScreen != null && RotationMinutes >= 1);
             StopRotationCommand = new RelayCommand(StopRotation, () => IsRotating);
@@ -716,13 +718,8 @@ namespace VideoWall.ViewModels
 
             // Verifica os agendamentos periodicamente (prioridade Normal para não ser
             // adiada quando a interface está ocupada; roda mesmo minimizado/em segundo plano).
-            _scheduleTimer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromSeconds(15) };
-            _scheduleTimer.Tick += (_, _) => CheckSchedules();
-            _scheduleTimer.Start();
 
             // Player de rotação (troca de layout a cada X min); inicia parado.
-            _rotationTimer = new DispatcherTimer();
-            _rotationTimer.Tick += (_, _) => RotationTick();
             RotationLayouts.CollectionChanged += (_, _) => CommandManager.InvalidateRequerySuggested();
 
             // Descobre automaticamente as telas (Viewers) na rede.
@@ -1027,14 +1024,15 @@ namespace VideoWall.ViewModels
         /// Envia a parede atual (fontes navegador/cor/texto) como layout para a
         /// tela selecionada, com posições normalizadas ao tamanho da tela.
         /// </summary>
-        private async void SendLayoutToScreen()
+        /// <summary>
+        /// Converte fontes da parede em fontes de rede (coordenadas normalizadas).
+        /// Usado tanto ao projetar quanto ao gravar a programação na tela — que leva
+        /// o CONTEÚDO dos layouts, já que a tela não acessa os arquivos daqui.
+        /// </summary>
+        private List<ScreenSource> BuildSources(IEnumerable<WallElement> elements)
         {
-            var screen = SelectedScreen;
-            if (screen == null || Elements.Count == 0 || WallWidth <= 0 || WallHeight <= 0)
-                return;
-
             var sources = new List<ScreenSource>();
-            foreach (var element in Elements.OrderBy(e => e.ZIndex))
+            foreach (var element in elements.OrderBy(e => e.ZIndex))
             {
                 var source = new ScreenSource
                 {
@@ -1069,6 +1067,17 @@ namespace VideoWall.ViewModels
 
                 sources.Add(source);
             }
+
+            return sources;
+        }
+
+        private async void SendLayoutToScreen()
+        {
+            var screen = SelectedScreen;
+            if (screen == null || Elements.Count == 0 || WallWidth <= 0 || WallHeight <= 0)
+                return;
+
+            var sources = BuildSources(Elements);
 
             if (sources.Count == 0)
             {
@@ -1720,58 +1729,6 @@ namespace VideoWall.ViewModels
                 : "Agendador retomado.";
         }
 
-        private void CheckSchedules()
-        {
-            if (SchedulerPaused)
-                return;
-
-            var now = DateTime.Now;
-
-            foreach (var entry in Schedules)
-            {
-                if (!entry.Enabled)
-                    continue;
-                if (entry.Hour != now.Hour || entry.Minute != now.Minute)
-                    continue;
-                if (entry.Days is { Count: > 0 } && !entry.Days.Contains((int)now.DayOfWeek))
-                    continue;
-                // Evita disparar mais de uma vez no mesmo minuto.
-                if (entry.LastFired is DateTime lf
-                    && lf.Date == now.Date && lf.Hour == now.Hour && lf.Minute == now.Minute)
-                    continue;
-
-                entry.LastFired = now;
-                FireSchedule(entry);
-            }
-        }
-
-        private void FireSchedule(ScheduleEntry entry)
-        {
-            var loaded = _layoutService.Load(entry.LayoutName, entry.ScreenId);
-            if (loaded == null)
-            {
-                StatusMessage = $"Agendamento {entry.TimeText}: layout '{entry.LayoutName}' não encontrado.";
-                return;
-            }
-
-            // Mira a tela (terminal) do agendamento e projeta o layout nela.
-            var screen = RemoteScreens.FirstOrDefault(s => s.Id == entry.ScreenId);
-            if (screen == null)
-            {
-                StatusMessage = $"Agendamento {entry.TimeText}: tela '{entry.ScreenText}' não está na rede.";
-                return;
-            }
-
-            SelectedScreen = screen;
-            ApplyLayout(loaded);
-            SetSelectedLayoutSilent(entry.LayoutName);
-
-            if (SendLayoutToScreenCommand.CanExecute(null))
-                SendLayoutToScreenCommand.Execute(null);
-
-            StatusMessage = $"Agendamento {entry.TimeText}: '{entry.LayoutName}' projetado em {screen.Name}.";
-        }
-
         // ---------------- Rotação automática (player) ----------------
 
         private void AddRotationLayout()
@@ -1789,26 +1746,16 @@ namespace VideoWall.ViewModels
             SelectedRotationLayout = null;
         }
 
-        private void StartRotation()
+        private async void StartRotation()
         {
-            if (IsRotating)
-                return;
-
-            // Antes isto saía calado quando faltava algo, e o usuário ficava sem saber por
-            // que "não funcionou". Cada recusa agora diz o que fazer.
             if (RotationScreen == null)
             {
                 RotationStatus = "Escolha a TELA da rotação.";
                 return;
             }
-            if (RotationLayouts.Count == 0)
+            if (RotationLayouts.Count < 2)
             {
-                RotationStatus = "Adicione ao menos um layout à sequência.";
-                return;
-            }
-            if (RotationLayouts.Count == 1)
-            {
-                RotationStatus = "Só há 1 layout na sequência — adicione outro para haver troca.";
+                RotationStatus = "Adicione ao menos dois layouts à sequência para haver troca.";
                 return;
             }
             if (RotationMinutes < 1)
@@ -1817,59 +1764,177 @@ namespace VideoWall.ViewModels
                 return;
             }
 
-            IsRotating = true;
-            _rotationIndex = 0;
-            ProjectRotationCurrent();                       // mostra o 1º layout já
-            _rotationTimer.Interval = TimeSpan.FromMinutes(RotationMinutes);
-            _rotationTimer.Start();
+            await PushScheduleAsync(RotationScreen, rodando: true);
         }
 
-        private void StopRotation()
+        private async void StopRotation()
         {
-            _rotationTimer.Stop();
+            if (RotationScreen != null)
+                await PushScheduleAsync(RotationScreen, rodando: false);
             IsRotating = false;
             RotationStatus = "Parado";
         }
 
-        private void RotationTick()
+        // =============== Programação executada PELA TELA ===============
+        // O agendador deixou de ser um cronômetro do painel. Aqui só montamos a
+        // programação e a gravamos na tela, que passa a executá-la sozinha — por isso
+        // ela sobrevive ao fechamento do controlador e qualquer outro controlador a
+        // enxerga: basta perguntar à tela.
+
+        /// <summary>
+        /// Tela cuja programação está sendo editada. A janela do agendador programa UMA
+        /// tela: é ela quem vai executar, então precisa ficar claro qual.
+        /// </summary>
+        public RemoteScreen? ScheduleTargetScreen => RotationScreen ?? SelectedScreen;
+
+        public string ScheduleScopeLabel => ScheduleTargetScreen == null
+            ? "Escolha uma tela para programar"
+            : $"Programação de {ScheduleTargetScreen.Name} — executada pela própria tela";
+
+        /// <summary>Ao abrir o agendador, mostra o que JÁ está programado na tela.</summary>
+        public async Task PrepareSchedulerAsync()
         {
-            if (RotationLayouts.Count == 0)
+            var alvo = SelectedScreen;
+            if (alvo != null)
             {
-                StopRotation();
-                return;
+                RotationScreen = alvo;
+                NewScheduleScreen = alvo;
             }
-            _rotationIndex = (_rotationIndex + 1) % RotationLayouts.Count;
-            ProjectRotationCurrent();
+            OnPropertyChanged(nameof(ScheduleScopeLabel));
+            await LoadScheduleFromScreenAsync(ScheduleTargetScreen);
         }
 
-        /// <summary>Projeta o layout atual da sequência na tela da rotação.</summary>
-        private void ProjectRotationCurrent()
+        private async Task SaveScheduleAsync()
         {
-            if (_rotationIndex < 0 || _rotationIndex >= RotationLayouts.Count || RotationScreen == null)
+            var alvo = ScheduleTargetScreen;
+            if (alvo == null)
+            {
+                RotationStatus = "Escolha a tela a programar.";
                 return;
+            }
+            await PushScheduleAsync(alvo);
+        }
 
-            string name = RotationLayouts[_rotationIndex];
-            var screen = RemoteScreens.FirstOrDefault(s => s.Id == RotationScreen.Id);
+        /// <summary>Monta a programação da tela a partir do que está na janela do agendador.</summary>
+        private ScreenSchedule BuildSchedule(RemoteScreen screen, bool? rodando)
+        {
+            var agenda = new ScreenSchedule
+            {
+                Enabled = !SchedulerPaused,
+                UpdatedBy = Environment.MachineName,
+                UpdatedAtUtc = DateTime.UtcNow,
+                Rotation = new RotationPlan
+                {
+                    Running = rodando ?? IsRotating,
+                    Minutes = Math.Max(1, RotationMinutes),
+                },
+            };
+
+            foreach (var entry in Schedules.Where(e => e.ScreenId == screen.Id))
+            {
+                var fontes = SourcesForLayout(entry.LayoutName, screen.Id);
+                if (fontes.Count == 0)
+                    continue;
+
+                agenda.Slots.Add(new ScheduleSlot
+                {
+                    Hour = entry.Hour,
+                    Minute = entry.Minute,
+                    Days = entry.Days?.ToList() ?? new List<int>(),
+                    Enabled = entry.Enabled,
+                    LayoutName = entry.LayoutName,
+                    Sources = fontes,
+                });
+            }
+
+            foreach (var nome in RotationLayouts)
+            {
+                var fontes = SourcesForLayout(nome, screen.Id);
+                if (fontes.Count > 0)
+                    agenda.Rotation.Steps.Add(new RotationStep { LayoutName = nome, Sources = fontes });
+            }
+
+            return agenda;
+        }
+
+        /// <summary>Conteúdo de um layout salvo, pronto para viajar até a tela.</summary>
+        private List<ScreenSource> SourcesForLayout(string name, string screenId)
+        {
+            if (string.IsNullOrWhiteSpace(name) || WallWidth <= 0 || WallHeight <= 0)
+                return new List<ScreenSource>();
+
+            var elementos = _layoutService.Load(name, screenId);
+            return elementos == null ? new List<ScreenSource>() : BuildSources(elementos);
+        }
+
+        /// <summary>Grava a programação NA TELA e adota de volta o que ficou valendo lá.</summary>
+        private async Task PushScheduleAsync(RemoteScreen screen, bool? rodando = null)
+        {
+            var agenda = BuildSchedule(screen, rodando);
+
+            if (agenda.Rotation is { Running: true } r && r.Steps.Count < 2)
+            {
+                RotationStatus = "Os layouts da sequência não foram encontrados para esta tela.";
+                return;
+            }
+
+            RotationStatus = $"Gravando na tela {screen.Name}…";
+            var confirmada = await ScheduleClient.SetAsync(agenda, screen.IpAddress);
+            if (confirmada == null)
+            {
+                RotationStatus = $"Não consegui gravar em {screen.Name} (tela offline ou anterior à 1.55).";
+                return;
+            }
+
+            AdoptSchedule(confirmada, screen);
+            StatusMessage = $"Programação salva na tela {screen.Name}.";
+        }
+
+        /// <summary>Lê da tela o que está programado e mostra no painel.</summary>
+        public async Task LoadScheduleFromScreenAsync(RemoteScreen? screen)
+        {
             if (screen == null)
+                return;
+
+            var agenda = await ScheduleClient.GetAsync(screen.IpAddress);
+            if (agenda == null)
             {
-                RotationStatus = $"Tela '{RotationScreen.Name}' offline — aguardando…";
+                RotationStatus = $"Sem resposta de {screen.Name} (offline ou anterior à 1.55).";
                 return;
             }
 
-            var loaded = _layoutService.Load(name, RotationScreen?.Id);
-            if (loaded == null)
-            {
-                RotationStatus = $"Layout '{name}' não encontrado.";
-                return;
-            }
+            AdoptSchedule(agenda, screen);
+        }
 
-            SelectedScreen = screen;
-            ApplyLayout(loaded);
-            SetSelectedLayoutSilent(name);
-            if (SendLayoutToScreenCommand.CanExecute(null))
-                SendLayoutToScreenCommand.Execute(null);
+        /// <summary>Reflete no painel a programação que está valendo na tela.</summary>
+        private void AdoptSchedule(ScreenSchedule agenda, RemoteScreen screen)
+        {
+            SchedulerPaused = !agenda.Enabled;
 
-            RotationStatus = $"Rodando — {name} ({_rotationIndex + 1}/{RotationLayouts.Count}) · troca a cada {RotationMinutes} min";
+            Schedules.Clear();
+            foreach (var slot in agenda.Slots ?? new List<ScheduleSlot>())
+                Schedules.Add(new ScheduleEntry
+                {
+                    Hour = slot.Hour,
+                    Minute = slot.Minute,
+                    Days = slot.Days?.ToList() ?? new List<int>(),
+                    Enabled = slot.Enabled,
+                    LayoutName = slot.LayoutName,
+                    ScreenId = screen.Id,
+                    ScreenName = screen.Name,
+                });
+
+            RotationLayouts.Clear();
+            foreach (var passo in agenda.Rotation?.Steps ?? new List<RotationStep>())
+                RotationLayouts.Add(passo.LayoutName);
+
+            if (agenda.Rotation != null)
+                RotationMinutes = Math.Max(1, agenda.Rotation.Minutes);
+
+            IsRotating = agenda.Rotation?.Running == true;
+            RotationStatus = IsRotating
+                ? $"Rodando NA TELA {screen.Name} — {RotationLayouts.Count} layouts, troca a cada {RotationMinutes} min"
+                : "Parado";
         }
 
         /// <summary>Tenta religar a captura de uma fonte de aplicativo pelo título da janela.</summary>
@@ -1987,9 +2052,7 @@ namespace VideoWall.ViewModels
 
         public void Dispose()
         {
-            _scheduleTimer.Stop();
             _thumbnailTimer.Stop();
-            _rotationTimer.Stop();
             _discovery.ViewersChanged -= OnRemoteViewersChanged;
             _discovery.Dispose();
             _controllerBeacon?.Dispose();

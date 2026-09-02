@@ -123,7 +123,22 @@ das duas está implementada.
 | 48015/TCP | central → terminal | Estado da célula (página + rolagem) |
 | 48016/TCP | central → terminal | Espelho de vídeo do controle ao vivo |
 | 48017/TCP | central → terminal | Layout atual da tela |
+| 48018/TCP | central → terminal | **Programação** (horários e rotação) que a tela executa |
 | 48020/TCP | terminal → central | **Atualização pela LAN** |
+
+## Programação das telas (horários e rotação)
+
+Quem executa é **a própria tela**, não o controlador. Isso significa que:
+
+- a programação **continua valendo com o controlador fechado** — a parede troca sozinha;
+- ela fica salva no terminal (`agenda.json`), então sobrevive a reinício, atualização e
+  queda de energia;
+- **qualquer controlador** vê o que está programado: ao abrir o Agendador, o painel
+  pergunta à tela e mostra o que está valendo lá.
+
+No painel: escolha a tela, monte os horários e a sequência de rotação, e clique em
+**💾 Salvar programação na tela**. Cada item viaja com o CONTEÚDO do layout — a tela não
+acessa os arquivos do controlador e precisa ser autossuficiente.
 
 ## Observações
 

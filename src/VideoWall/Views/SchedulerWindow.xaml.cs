@@ -13,6 +13,10 @@ namespace VideoWall.Views
             InitializeComponent();
             _viewModel = viewModel;
             DataContext = viewModel;
+
+            // Quem guarda e executa a programação é a TELA. Ao abrir, mostramos o que
+            // está valendo lá — é isso que faz dois controladores verem a mesma coisa.
+            Loaded += async (_, _) => await _viewModel.PrepareSchedulerAsync();
         }
 
         private void OnClose(object sender, RoutedEventArgs e)

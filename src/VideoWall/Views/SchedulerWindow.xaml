@@ -19,6 +19,11 @@
         <Border DockPanel.Dock="Bottom" Background="{StaticResource InputBg}"
                 BorderBrush="{StaticResource HairDark}" BorderThickness="0,1,0,0" Padding="16,12">
             <StackPanel>
+                <!-- Salvar GRAVA NA TELA: e ela quem executa, entao a programacao
+                     sobrevive ao fechamento do controlador e outro controlador a ve. -->
+                <Button Content="💾 Salvar programação na tela" Height="34" Margin="0,0,0,10"
+                        Command="{Binding SaveScheduleCommand}" Style="{StaticResource PanelButton}"
+                        ToolTip="Grava os horários e a sequência de rotação no terminal"/>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="▶ Iniciar rotação" Width="160" Margin="0,0,8,0"
                             Command="{Binding StartRotationCommand}" Style="{StaticResource PanelButton}"
@@ -32,7 +37,7 @@
                                TextWrapping="Wrap" MaxWidth="330"/>
                 </StackPanel>
 
-                <TextBlock Text="A rotação funciona enquanto o controlador estiver aberto (pode ficar minimizado)."
+                <TextBlock Text="A programação roda NA TELA: continua valendo com o controlador fechado."
                            Foreground="{StaticResource OnDarkMuted}" FontSize="11" Margin="0,8,0,0"/>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
@@ -47,6 +52,9 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="16">
             <StackPanel>
                 <!-- ============ POR HORÁRIO ============ -->
+                <TextBlock Text="{Binding ScheduleScopeLabel}" Foreground="{StaticResource Gold}"
+                           FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
                 <TextBlock Text="AGENDAMENTO POR HORÁRIO" Style="{StaticResource SectionLabel}" Margin="0,0,0,2"/>
                 <TextBlock Text="Projeta um layout numa tela em um horário"
                            Foreground="{StaticResource OnDark}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10"/>

@@ -105,6 +105,12 @@ Windows já em cache. Histórico é linear na `main`, um commit por versão.
 | Auto-update | [TerminalPackageService.cs](src/VideoWall/Services/TerminalPackageService.cs) (central), [TerminalUpdater.cs](src/VideoWall.Viewer/TerminalUpdater.cs) (terminal), [setup-terminal.iss](instaladores/setup-terminal.iss) (tarefa SYSTEM) |
 | Persistência (layouts, favoritos, agenda) | `Services/LayoutService`, `FavoritesService`, `ScheduleService`, `SettingsService` — tudo JSON em `%LocalAppData%\VideoWall` |
 
+**A programação (horários e rotação) roda NA TELA**, não no controlador — porta 48018,
+`ScreenSchedule`/`ScheduleServer` na Network e `TerminalScheduler` no terminal. Foi assim
+que ela passou a sobreviver ao fechamento do painel, a ficar salva e a ser visível por
+qualquer controlador. Cada item leva as FONTES junto, não o nome do layout: a tela não
+acessa os arquivos de layout do controlador.
+
 **Layouts pertencem a UMA TELA.** Ficam em `%LocalAppData%\VideoWall\Layouts\<nome-da-tela>\`;
 a raiz guarda só os salvos antes dessa separação, que aparecem para todas as telas até
 serem regravados numa. Toda operação de layout leva o id da tela — inclusive o agendador,
@@ -132,5 +138,5 @@ antes de "consertar" alguma delas:
 
 ## Estado atual
 
-Versão **1.54.0**. Fases A (parede local) e D (rede, controle remoto, auto-update)
+Versão **1.55.0**. Fases A (parede local) e D (rede, controle remoto, auto-update)
 concluídas. O que falta está no fim de [ARQUITETURA.md](ARQUITETURA.md#o-que-falta).

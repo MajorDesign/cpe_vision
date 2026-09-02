@@ -33,6 +33,8 @@ namespace VideoWall.Viewer
         private LiveStateServer? _liveStateServer;
         private LiveViewServer? _liveViewServer;
         private LayoutQueryServer? _layoutQueryServer;
+        private ScheduleServer? _scheduleServer;
+        private TerminalScheduler? _scheduler;
         private System.Windows.Threading.DispatcherTimer? _layoutSaveTimer;
 
         // Páginas que saíram do layout mas continuam VIVAS (ocultas), por URL projetada.
@@ -140,6 +142,15 @@ namespace VideoWall.Viewer
             // a parede ao reabrir — o terminal é a fonte da verdade.
             _layoutQueryServer = new LayoutQueryServer(GetCurrentLayoutAsync);
             StartServer("layout atual", () => _layoutQueryServer.Start());
+
+            // A PROGRAMAÇÃO (horários e rotação) é executada pela própria tela: ela
+            // continua trocando com o controlador fechado, sobrevive a reinício e
+            // qualquer controlador pode lê-la de volta.
+            _scheduler = new TerminalScheduler(sources => ApplyLayout(sources));
+            _scheduleServer = new ScheduleServer(
+                () => _scheduler!.Current,
+                nova => Dispatcher.BeginInvoke(() => _scheduler!.Replace(nova)));
+            StartServer("programação", () => _scheduleServer.Start());
 
             // RESTAURA o layout salvo (atualização/overlay/queda de energia): volta exibindo
             // o que estava, com as URLs ao vivo. A sessão/login está na pasta do WebView2,
@@ -1307,6 +1318,8 @@ namespace VideoWall.Viewer
             _liveStateServer?.Dispose();
             _liveViewServer?.Dispose();
             _layoutQueryServer?.Dispose();
+            _scheduleServer?.Dispose();
+            _scheduler?.Dispose();
             _beacon?.Dispose();
             _updateTimer?.Stop();
             _updater?.Dispose();
