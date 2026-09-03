@@ -1030,14 +1030,22 @@ namespace VideoWall.Viewer
                     ForegroundHex = s.ForegroundHex,
                 };
 
-                // URL AO VIVO do navegador (após cliques/login/navegação).
-                if (s.Kind == ScreenSource.Browser && i < _slots.Count &&
-                    _slots[i] is WebView2 web && web.CoreWebView2 is { } core)
+                if (s.Kind == ScreenSource.Browser && i < _slots.Count && _slots[i] is WebView2 web)
                 {
-                    var live = core.Source;
-                    if (!string.IsNullOrWhiteSpace(live) &&
-                        live.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                        copy.Url = live;
+                    // URL AO VIVO do navegador (após cliques/login/navegação).
+                    if (web.CoreWebView2 is { } core)
+                    {
+                        var live = core.Source;
+                        if (!string.IsNullOrWhiteSpace(live) &&
+                            live.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            copy.Url = live;
+                    }
+
+                    // ZOOM AO VIVO: o operador pode tê-lo ajustado pelo controle ao vivo.
+                    // Sem guardar o valor que está VALENDO, reiniciar a tela devolveria o
+                    // zoom antigo — o mesmo motivo pelo qual guardamos a URL ao vivo.
+                    if (web.Tag is double zoomVivo && zoomVivo > 0)
+                        copy.Zoom = zoomVivo;
                 }
 
                 list.Add(copy);

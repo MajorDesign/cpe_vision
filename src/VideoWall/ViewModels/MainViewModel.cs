@@ -558,6 +558,9 @@ namespace VideoWall.ViewModels
             private set => SetProperty(ref _statusMessage, value);
         }
 
+        /// <summary>Mensagem de status vinda das janelas auxiliares (ex.: controle ao vivo).</summary>
+        public void Announce(string mensagem) => StatusMessage = mensagem;
+
         public WallElement? SelectedElement
         {
             get => _selectedElement;

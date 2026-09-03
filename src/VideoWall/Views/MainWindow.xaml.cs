@@ -197,6 +197,18 @@ namespace VideoWall.Views
             {
                 Owner = this
             };
+
+            // O zoom ajustado ao vivo volta para a fonte: assim ele aparece na
+            // pré-visualização, sobrevive a reprojetar e é gravado ao salvar o layout.
+            window.ZoomChanged += zoom => target.ZoomFactor = zoom;
+            window.Closed += (_, _) =>
+            {
+                target.ZoomFactor = window.EffectiveZoom;
+                _viewModel.Announce(
+                    $"Controle ao vivo encerrado — zoom de '{target.Name}' guardado em {Math.Round(window.EffectiveZoom * 100)}%. " +
+                    "Salve o layout para mantê-lo.");
+            };
+
             window.Show();
         }
 

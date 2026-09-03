@@ -32,6 +32,16 @@ namespace VideoWall.Views
         /// <param name="targetIndex">Índice do navegador-alvo no layout (a célula a controlar).</param>
         /// <param name="baseZoom">Zoom projetado da célula (enviado ao terminal ao ajustar o zoom).</param>
         /// <param name="aspect">Proporção largura/altura da célula (para o espelho ter o mesmo formato).</param>
+        /// <summary>
+        /// Zoom que o operador deixou, já combinado com o que a fonte tinha. É o valor
+        /// que o painel grava de volta na fonte, para o ajuste sobreviver a fechar a
+        /// janela, reprojetar e salvar o layout.
+        /// </summary>
+        public double EffectiveZoom => _baseZoom * _userZoom;
+
+        /// <summary>Disparado a cada ajuste de zoom, com o valor efetivo.</summary>
+        public event Action<double>? ZoomChanged;
+
         public LiveControlWindow(string ip, string screenName, string initialUrl, int targetIndex,
             double baseZoom, double aspect)
         {
@@ -371,6 +381,11 @@ namespace VideoWall.Views
         {
             _userZoom = Math.Clamp(zoom, 0.5, 3.0);
             ZoomLabel.Text = $"{Math.Round(_userZoom * 100)}%";
+
+            // Devolve o zoom à fonte na parede. Sem isto, o ajuste vivia só no
+            // terminal: fechar e reabrir o controle, reprojetar ou salvar o layout
+            // trazia de volta o zoom antigo, e o que o operador escolheu se perdia.
+            ZoomChanged?.Invoke(EffectiveZoom);
             // Zoom é aplicado NO TERMINAL; o espelho reflete a mudança no próximo frame.
             _sender.Send(new RemoteInputEvent { Kind = "zoom", Zoom = _baseZoom * _userZoom, TargetIndex = _targetIndex });
         }
